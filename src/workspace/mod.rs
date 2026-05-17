@@ -11,3 +11,5 @@ pub struct Workspace {
     pub path: PathBuf,
     pub branch: Option<String>,
 }
+
+pub use worktree::{create_worktree, current_branch, list_worktrees, validate_repo};
