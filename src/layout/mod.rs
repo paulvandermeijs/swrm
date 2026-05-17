@@ -6,28 +6,43 @@ pub use left_sidebar::LeftSidebarPanel;
 pub use main_tabs::MainTabsPanel;
 pub use right_sidebar::RightSidebarPanel;
 
-use swrm::app_state::AppState;
-use gpui::{AppContext, Context, Entity, Window};
+use gpui::{AppContext, Entity, Window};
 use gpui_component::dock::{DockArea, DockItem, DockPlacement};
 use std::sync::Arc;
+use swrm::app_state::AppState;
 
-pub fn build(
+pub struct Layout {
+    pub dock: Entity<DockArea>,
+    pub left: Entity<LeftSidebarPanel>,
+    pub right: Entity<RightSidebarPanel>,
+    pub tabs: Entity<MainTabsPanel>,
+}
+
+pub fn build<T: 'static>(
     state: Entity<AppState>,
     window: &mut Window,
-    cx: &mut Context<DockArea>,
-) -> DockArea {
-    let mut area = DockArea::new("swrm-root", Some(1), window, cx);
-    let weak = cx.entity().downgrade();
-
+    cx: &mut gpui::Context<T>,
+) -> Layout {
     let left = cx.new(|cx| LeftSidebarPanel::new(state.clone(), window, cx));
     let right = cx.new(|cx| RightSidebarPanel::new(state.clone(), window, cx));
-    let center_tabs = cx.new(|cx| MainTabsPanel::new(state.clone(), window, cx));
+    let tabs = cx.new(|cx| MainTabsPanel::new(state.clone(), window, cx));
 
-    area.add_panel(Arc::new(left), DockPlacement::Left, None, window, cx);
-    area.add_panel(Arc::new(right), DockPlacement::Right, None, window, cx);
+    let left_arc = Arc::new(left.clone());
+    let right_arc = Arc::new(right.clone());
+    let tabs_arc = Arc::new(tabs.clone());
 
-    let center = DockItem::tabs(vec![Arc::new(center_tabs)], &weak, window, cx);
-    area.set_center(center, window, cx);
+    let dock = cx.new(|cx| {
+        let mut area = DockArea::new("swrm-root", Some(1), window, cx);
+        let weak = cx.entity().downgrade();
 
-    area
+        area.add_panel(left_arc, DockPlacement::Left, None, window, cx);
+        area.add_panel(right_arc, DockPlacement::Right, None, window, cx);
+
+        let center = DockItem::tabs(vec![tabs_arc], &weak, window, cx);
+        area.set_center(center, window, cx);
+
+        area
+    });
+
+    Layout { dock, left, right, tabs }
 }

@@ -18,6 +18,17 @@ fn main() -> Result<()> {
         cx.bind_keys([
             gpui::KeyBinding::new("cmd-b", app::ToggleLeftSidebar, Some("Root")),
             gpui::KeyBinding::new("cmd-l", app::ToggleRightSidebar, Some("Root")),
+            gpui::KeyBinding::new("cmd-t", app::NewTab, Some("Root")),
+            gpui::KeyBinding::new("cmd-w", app::CloseTab, Some("Root")),
+            gpui::KeyBinding::new("cmd-1", app::SelectTab1, Some("Root")),
+            gpui::KeyBinding::new("cmd-2", app::SelectTab2, Some("Root")),
+            gpui::KeyBinding::new("cmd-3", app::SelectTab3, Some("Root")),
+            gpui::KeyBinding::new("cmd-4", app::SelectTab4, Some("Root")),
+            gpui::KeyBinding::new("cmd-5", app::SelectTab5, Some("Root")),
+            gpui::KeyBinding::new("cmd-6", app::SelectTab6, Some("Root")),
+            gpui::KeyBinding::new("cmd-7", app::SelectTab7, Some("Root")),
+            gpui::KeyBinding::new("cmd-8", app::SelectTab8, Some("Root")),
+            gpui::KeyBinding::new("cmd-9", app::SelectTab9, Some("Root")),
         ]);
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(
