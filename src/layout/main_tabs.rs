@@ -259,7 +259,25 @@ impl Panel for MainTabsPanel {
         "main-tabs"
     }
 
-    fn title(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        "Terminal"
+    fn title(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let (active_path, store) = {
+            let s = self.state.read(cx);
+            (s.active_workspace.clone(), s.workspaces.clone())
+        };
+        let title = active_path
+            .as_ref()
+            .and_then(|path| {
+                store
+                    .read(cx)
+                    .workspaces
+                    .iter()
+                    .find(|w| &w.path == path)
+                    .map(|ws| match &ws.branch {
+                        Some(b) => format!("{} \u{2014} {}", ws.label, b),
+                        None => ws.label.clone(),
+                    })
+            })
+            .unwrap_or_else(|| "Terminal".to_string());
+        title
     }
 }
