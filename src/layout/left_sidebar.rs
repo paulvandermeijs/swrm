@@ -41,6 +41,41 @@ impl LeftSidebarPanel {
         .detach();
     }
 
+    fn new_worktree(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(active) = self.state.read(cx).active_workspace.clone() else {
+            return;
+        };
+        let task = cx.prompt_for_paths(PathPromptOptions {
+            files: false,
+            directories: true,
+            multiple: false,
+            prompt: None,
+        });
+        cx.spawn_in(window, async move |this, cx| {
+            let Ok(Ok(Some(paths))) = task.await else { return };
+            let Some(target) = paths.into_iter().next() else { return };
+            let _ = this.update(cx, |this, cx| {
+                let repo = match workspace::validate_repo(&active) {
+                    Ok(r) => r,
+                    Err(err) => {
+                        tracing::warn!(?err, "active workspace is not a git repo");
+                        return;
+                    }
+                };
+                let branch = target
+                    .file_name()
+                    .map(|s| s.to_string_lossy().to_string())
+                    .unwrap_or_else(|| "swrm-wt".into());
+                if let Err(err) = workspace::create_worktree(&repo, &branch, &target) {
+                    tracing::warn!(?err, "create_worktree failed");
+                    return;
+                }
+                this.handle_picked(target, cx);
+            });
+        })
+        .detach();
+    }
+
     fn handle_picked(&mut self, path: PathBuf, cx: &mut Context<Self>) {
         let repo = match workspace::validate_repo(&path) {
             Ok(r) => r,
@@ -103,6 +138,11 @@ impl Render for LeftSidebarPanel {
                     .on_click(cx.listener(|this, _ev, window, cx| {
                         this.open_workspace(window, cx);
                     })),
+            )
+            .child(
+                Button::new("new-worktree")
+                    .label("New worktree\u{2026}")
+                    .on_click(cx.listener(|this, _, window, cx| this.new_worktree(window, cx))),
             )
             .child(list)
     }
