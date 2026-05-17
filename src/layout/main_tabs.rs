@@ -1,9 +1,12 @@
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, MouseButton, ParentElement, Render, Styled, Subscription, Window, div,
+    KeyDownEvent, ParentElement, Render, Styled, Subscription, Window, div,
     prelude::FluentBuilder,
 };
+use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::dock::{Panel, PanelEvent};
+use gpui_component::tab::{Tab, TabBar};
+use gpui_component::{IconName, Sizable};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -137,15 +140,26 @@ impl MainTabsPanel {
         let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
             return;
         };
+        let Some(entry) = self.by_workspace.get(&cwd) else {
+            return;
+        };
+        let idx = entry.active_index;
+        self.close_at(idx, cx);
+    }
+
+    fn close_at(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
+            return;
+        };
         let Some(entry) = self.by_workspace.get_mut(&cwd) else {
             return;
         };
-        if entry.tabs.is_empty() {
+        if idx >= entry.tabs.len() {
             return;
         }
-        entry.tabs.remove(entry.active_index);
+        entry.tabs.remove(idx);
         if entry.active_index >= entry.tabs.len() && entry.active_index > 0 {
-            entry.active_index -= 1;
+            entry.active_index = entry.tabs.len().saturating_sub(1);
         }
         cx.notify();
     }
@@ -185,26 +199,43 @@ impl Focusable for MainTabsPanel {
 impl Render for MainTabsPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let active_workspace = self.state.read(cx).active_workspace.clone();
-        let entry = active_workspace.as_ref().and_then(|p| self.by_workspace.get(p));
-        let mut bar = div().flex().flex_row().gap_2().p_2();
-        if let Some(entry) = entry {
-            for (idx, tab) in entry.tabs.iter().enumerate() {
-                let label = tab.read(cx).label.clone();
-                let is_active = idx == entry.active_index;
-                bar = bar.child(
-                    div()
-                        .px_2()
-                        .py_1()
-                        .when(is_active, |d| d.bg(gpui::rgb(0x3a3a3a)))
-                        .child(label)
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, _, _, cx| this.select(idx, cx)),
-                        ),
-                );
-            }
-        }
+        let entry = active_workspace
+            .as_ref()
+            .and_then(|p| self.by_workspace.get(p));
+
+        let tab_labels: Vec<String> = entry
+            .map(|e| e.tabs.iter().map(|t| t.read(cx).label.clone()).collect())
+            .unwrap_or_default();
+        let selected_index = entry.map(|e| e.active_index).unwrap_or(0);
         let active_tab = entry.and_then(|e| e.tabs.get(e.active_index)).cloned();
+        let has_workspace = active_workspace.is_some();
+
+        let mut bar = TabBar::new("main-tabs-bar")
+            .w_full()
+            .selected_index(selected_index)
+            .on_click(cx.listener(|this, ix: &usize, _window, cx| this.select(*ix, cx)));
+
+        for (idx, label) in tab_labels.into_iter().enumerate() {
+            bar = bar.child(
+                Tab::new().label(label).suffix(
+                    Button::new(("close-tab", idx))
+                        .ghost()
+                        .xsmall()
+                        .icon(IconName::Close)
+                        .on_click(cx.listener(move |this, _, _, cx| this.close_at(idx, cx))),
+                ),
+            );
+        }
+
+        if has_workspace {
+            bar = bar.suffix(
+                Button::new("new-tab")
+                    .ghost()
+                    .small()
+                    .icon(IconName::Plus)
+                    .on_click(cx.listener(|this, _, _, cx| this.new_tab(cx))),
+            );
+        }
 
         div()
             .track_focus(&self.focus)
