@@ -10,7 +10,21 @@ pub struct Workspace {
     pub label: String,
     pub path: PathBuf,
     pub branch: Option<String>,
+    /// Workdir of the workspace's project (the main repo this worktree belongs
+    /// to). Workspaces that share a `project` are grouped together in the UI.
+    /// Optional for back-compat with config files written before this field;
+    /// fall back to `path` when reading.
+    #[serde(default)]
+    pub project: Option<PathBuf>,
 }
 
-pub use worktree::{create_worktree, current_branch, list_worktrees, validate_repo};
+impl Workspace {
+    /// Returns the project directory this workspace belongs to. Falls back to
+    /// `path` if `project` was not recorded (e.g. older persisted entries).
+    pub fn project_dir(&self) -> &std::path::Path {
+        self.project.as_deref().unwrap_or(&self.path)
+    }
+}
+
 pub use store::{WorkspaceEvent, WorkspaceStore};
+pub use worktree::{create_worktree, current_branch, list_worktrees, project_dir, validate_repo};

@@ -9,6 +9,14 @@ pub fn current_branch(repo: &gix::Repository) -> Option<String> {
     repo.head_name().ok().flatten().map(|name| name.shorten().to_string())
 }
 
+/// Returns the workdir of the main repository for the given (possibly worktree)
+/// repository — i.e. the parent of `common_dir`. Workspaces that share a
+/// project_dir are worktrees of the same repo.
+pub fn project_dir(repo: &gix::Repository) -> PathBuf {
+    let common = repo.common_dir();
+    common.parent().unwrap_or(common).to_path_buf()
+}
+
 pub fn list_worktrees(repo: &gix::Repository) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
     out.push(repo.workdir().context("bare repo not supported")?.to_path_buf());

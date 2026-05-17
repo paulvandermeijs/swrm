@@ -11,11 +11,13 @@ fn round_trips_workspaces() {
             label: "main".into(),
             path: PathBuf::from("/repos/foo"),
             branch: Some("main".into()),
+            project: Some(PathBuf::from("/repos/foo")),
         },
         Workspace {
             label: "feature-x".into(),
             path: PathBuf::from("/repos/foo-worktrees/x"),
             branch: Some("feature-x".into()),
+            project: Some(PathBuf::from("/repos/foo")),
         },
     ];
     persistence::save_to(&path, &original).unwrap();
