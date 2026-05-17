@@ -24,6 +24,11 @@ actions!(
         SelectTab7,
         SelectTab8,
         SelectTab9,
+        // Bound in the "Terminal" key context so that they outrank gpui-component's
+        // Root-context tab/shift-tab focus-navigation bindings when the terminal
+        // is focused. The TerminalTab handlers write the appropriate bytes to the PTY.
+        SendTerminalTab,
+        SendTerminalShiftTab,
     ]
 );
 

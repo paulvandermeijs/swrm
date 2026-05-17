@@ -27,7 +27,9 @@ fn main() -> Result<()> {
                 Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf")),
                 Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Bold.ttf")),
                 Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Italic.ttf")),
-                Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-BoldItalic.ttf")),
+                Cow::Borrowed(include_bytes!(
+                    "../assets/fonts/JetBrainsMono-BoldItalic.ttf"
+                )),
             ];
             cx.text_system()
                 .add_fonts(fonts)
@@ -49,6 +51,8 @@ fn main() -> Result<()> {
                 gpui::KeyBinding::new("cmd-7", app::SelectTab7, Some("Root")),
                 gpui::KeyBinding::new("cmd-8", app::SelectTab8, Some("Root")),
                 gpui::KeyBinding::new("cmd-9", app::SelectTab9, Some("Root")),
+                gpui::KeyBinding::new("tab", app::SendTerminalTab, Some("Terminal")),
+                gpui::KeyBinding::new("shift-tab", app::SendTerminalShiftTab, Some("Terminal")),
             ]);
             let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
             cx.open_window(

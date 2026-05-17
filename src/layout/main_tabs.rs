@@ -1,3 +1,4 @@
+use crate::app::{SendTerminalShiftTab, SendTerminalTab};
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
     KeyDownEvent, ParentElement, Render, ScrollWheelEvent, Styled, Subscription, Window, div,
@@ -78,6 +79,30 @@ impl TerminalTab {
         }
     }
 
+    fn on_send_tab(&mut self, _: &SendTerminalTab, _window: &mut Window, cx: &mut Context<Self>) {
+        self.write_pty(b"\t", cx);
+    }
+
+    fn on_send_shift_tab(
+        &mut self,
+        _: &SendTerminalShiftTab,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // CSI Z — the standard xterm "back tab" sequence.
+        self.write_pty(b"\x1b[Z", cx);
+    }
+
+    fn write_pty(&mut self, bytes: &[u8], cx: &mut Context<Self>) {
+        if self.exited {
+            return;
+        }
+        if let Err(err) = self.terminal.write_input(bytes) {
+            tracing::warn!(?err, "pty write failed");
+        }
+        cx.notify();
+    }
+
     fn on_scroll(
         &mut self,
         event: &ScrollWheelEvent,
@@ -120,7 +145,10 @@ impl Render for TerminalTab {
         let entity = cx.entity().downgrade();
 
         div()
+            .key_context("Terminal")
             .track_focus(&self.focus)
+            .on_action(cx.listener(Self::on_send_tab))
+            .on_action(cx.listener(Self::on_send_shift_tab))
             .on_key_down(cx.listener(Self::on_key))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .size_full()
