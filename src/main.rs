@@ -16,6 +16,10 @@ fn main() -> Result<()> {
 
     gpui_platform::application().run(|cx: &mut App| {
         gpui_component::init(cx);
+        cx.bind_keys([
+            gpui::KeyBinding::new("cmd-b", app::ToggleLeftSidebar, Some("Root")),
+            gpui::KeyBinding::new("cmd-l", app::ToggleRightSidebar, Some("Root")),
+        ]);
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(
             WindowOptions {
