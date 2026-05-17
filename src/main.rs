@@ -25,6 +25,9 @@ fn main() -> Result<()> {
                 Cow::Borrowed(include_bytes!("../assets/fonts/IBMPlexSans-Regular.ttf")),
                 Cow::Borrowed(include_bytes!("../assets/fonts/IBMPlexSans-SemiBold.ttf")),
                 Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf")),
+                Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Bold.ttf")),
+                Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Italic.ttf")),
+                Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-BoldItalic.ttf")),
             ];
             cx.text_system()
                 .add_fonts(fonts)

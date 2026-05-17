@@ -130,7 +130,7 @@ impl Render for TerminalTab {
                 div()
                     .size_full()
                     .relative()
-                    .child(render_snapshot(&snap))
+                    .child(render_snapshot(&snap, cell_width))
                     .child(
                         gpui::canvas(
                             move |bounds, _window, cx| {
