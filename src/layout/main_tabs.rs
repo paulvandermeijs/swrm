@@ -10,7 +10,10 @@ use gpui_component::{IconName, Sizable};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use swrm::app_state::{AppEvent, AppState};
-use swrm::terminal::{Terminal, input, render::render_snapshot};
+use swrm::terminal::{
+    Terminal, input,
+    render::{CELL_FONT_SIZE_PX, CELL_LINE_HEIGHT_PX, render_snapshot},
+};
 
 pub struct TerminalTab {
     pub label: String,
@@ -102,14 +105,44 @@ impl Focusable for TerminalTab {
 impl Render for TerminalTab {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let snap = self.terminal.snapshot();
+
+        // Measure cell width using the same font + size the renderer paints with.
+        let font_id = cx.text_system().resolve_font(&gpui::Font {
+            family: "JetBrains Mono".into(),
+            ..Default::default()
+        });
+        let cell_width = cx
+            .text_system()
+            .advance(font_id, gpui::px(CELL_FONT_SIZE_PX), 'm')
+            .map(|s| s.width.as_f32())
+            .unwrap_or(CELL_FONT_SIZE_PX * 0.6);
+        let line_height = CELL_LINE_HEIGHT_PX;
+        let entity = cx.entity().downgrade();
+
         div()
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .size_full()
             .bg(gpui::rgb(0x111111))
-            .p_2()
+            .relative()
             .child(render_snapshot(&snap))
+            .child(
+                gpui::canvas(
+                    move |bounds, _window, cx| {
+                        let cols =
+                            ((bounds.size.width.as_f32() / cell_width).floor() as u16).max(2);
+                        let rows =
+                            ((bounds.size.height.as_f32() / line_height).floor() as u16).max(1);
+                        let _ = entity.update(cx, |this, _cx| {
+                            let _ = this.terminal.resize(cols, rows);
+                        });
+                    },
+                    |_, _, _, _| {},
+                )
+                .absolute()
+                .inset_0(),
+            )
     }
 }
 

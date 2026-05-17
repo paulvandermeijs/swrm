@@ -1,13 +1,23 @@
 use super::{Cell, CellFlags, Snapshot};
 use gpui::{IntoElement, ParentElement, Styled, div, px, rgb};
 
+/// Font size for the terminal grid. Used both by the renderer and by the
+/// resize-to-bounds measurement in `TerminalTab::render`.
+pub const CELL_FONT_SIZE_PX: f32 = 13.0;
+
+/// Per-row line height in pixels. Pinned explicitly (rather than relying on
+/// gpui's default `phi()` multiplier) so the resize-to-bounds math and the
+/// renderer agree to within one pixel.
+pub const CELL_LINE_HEIGHT_PX: f32 = 20.0;
+
 pub fn render_snapshot(snap: &Snapshot) -> impl IntoElement {
     let cols = snap.cols as usize;
     let mut col = div()
         .flex()
         .flex_col()
         .font_family("JetBrains Mono")
-        .text_size(px(13.));
+        .text_size(px(CELL_FONT_SIZE_PX))
+        .line_height(px(CELL_LINE_HEIGHT_PX));
 
     for row in 0..snap.rows as usize {
         let start = row * cols;

@@ -126,6 +126,10 @@ impl Backend {
             columns: cols as usize,
             screen_lines: rows as usize,
         };
+        if new_size.columns == self.size.columns && new_size.screen_lines == self.size.screen_lines
+        {
+            return Ok(());
+        }
         if let Some(tx) = &self.tx {
             let _ = tx.send(Msg::Resize(new_size.into()));
         }
