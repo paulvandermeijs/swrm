@@ -1,46 +1,67 @@
+pub mod backend;
+pub mod colors;
 pub mod input;
-pub mod pty;
+pub mod listener;
 pub mod render;
-pub mod vt;
+pub mod snapshot;
 
-pub use vt::{Cell, Snapshot, VtWrapper};
+pub(crate) use backend::Backend;
+pub use snapshot::{Cell, CellFlags, Snapshot};
 
+use alacritty_terminal::event::Event as AlacEvent;
+use alacritty_terminal::term::TermMode;
 use anyhow::Result;
+use futures::channel::mpsc::UnboundedReceiver;
 use std::path::Path;
 
 pub struct Terminal {
-    pub pty: pty::PtySession,
-    pub vt: VtWrapper,
+    backend: Backend,
+    events: Option<UnboundedReceiver<AlacEvent>>,
 }
 
 impl Terminal {
     pub fn spawn(cwd: &Path, cols: u16, rows: u16) -> Result<Self> {
-        let pty = pty::PtySession::spawn(cwd, cols, rows)?;
-        let vt = VtWrapper::new(cols, rows)?;
-        Ok(Self { pty, vt })
+        let (backend, events) = Backend::spawn(cwd, cols, rows)?;
+        Ok(Self {
+            backend,
+            events: Some(events),
+        })
     }
 
-    /// Drains any pending PTY output into the VT. Returns whether anything changed.
-    pub fn tick(&mut self) -> bool {
-        let mut changed = false;
-        while let Ok(chunk) = self.pty.output_rx.try_recv() {
-            self.vt.feed(&chunk);
-            changed = true;
+    pub fn headless(cols: u16, rows: u16) -> Self {
+        let (backend, events) = Backend::headless(cols, rows);
+        Self {
+            backend,
+            events: Some(events),
         }
-        changed
+    }
+
+    pub fn take_events(&mut self) -> Option<UnboundedReceiver<AlacEvent>> {
+        self.events.take()
     }
 
     pub fn write_input(&mut self, bytes: &[u8]) -> Result<()> {
-        self.pty.write_input(bytes)
-    }
-
-    pub fn resize(&mut self, cols: u16, rows: u16) -> Result<()> {
-        self.pty.resize(cols, rows)?;
-        self.vt.resize(cols, rows)?;
+        self.backend.write_input(bytes);
         Ok(())
     }
 
-    pub fn snapshot(&mut self) -> Result<Snapshot> {
-        self.vt.snapshot()
+    pub fn resize(&mut self, cols: u16, rows: u16) -> Result<()> {
+        self.backend.resize(cols, rows)
+    }
+
+    pub fn scroll(&self, delta_lines: i32) {
+        self.backend.scroll(delta_lines);
+    }
+
+    pub fn snapshot(&self) -> Snapshot {
+        self.backend.snapshot()
+    }
+
+    pub fn mode(&self) -> TermMode {
+        self.backend.mode()
+    }
+
+    pub fn feed_bytes(&self, bytes: &[u8]) {
+        self.backend.feed_bytes(bytes);
     }
 }

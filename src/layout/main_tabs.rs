@@ -8,7 +8,6 @@ use gpui_component::tab::{Tab, TabBar};
 use gpui_component::{IconName, Sizable};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
 use swrm::app_state::{AppEvent, AppState};
 use swrm::terminal::{Terminal, input, render::render_snapshot};
 
@@ -16,44 +15,62 @@ pub struct TerminalTab {
     pub label: String,
     pub terminal: Terminal,
     pub focus: FocusHandle,
+    pub exited: bool,
 }
 
 impl TerminalTab {
     pub fn new(label: String, cwd: PathBuf, cx: &mut Context<Self>) -> anyhow::Result<Self> {
-        let terminal = Terminal::spawn(&cwd, 80, 24)?;
+        let mut terminal = Terminal::spawn(&cwd, 80, 24)?;
+        let events = terminal
+            .take_events()
+            .expect("Terminal::spawn populates the event channel");
         let focus = cx.focus_handle();
+
         cx.spawn(async move |this, cx| {
-            loop {
-                cx.background_executor()
-                    .timer(Duration::from_millis(16))
-                    .await;
-                let cont = this.update(cx, |this, cx| {
-                    let changed = this.terminal.tick();
-                    if changed {
-                        cx.notify();
-                    }
-                    !this
-                        .terminal
-                        .pty
-                        .child
-                        .try_wait()
-                        .map(|s| s.is_some())
-                        .unwrap_or(false)
-                });
-                if !matches!(cont, Ok(true)) {
+            use futures::StreamExt;
+            let mut events = events;
+            while let Some(event) = events.next().await {
+                use alacritty_terminal::event::Event::*;
+                let cont = this
+                    .update(cx, |this, cx| {
+                        match event {
+                            Wakeup | Bell | MouseCursorDirty => {
+                                cx.notify();
+                                true
+                            }
+                            Title(_) | ResetTitle => {
+                                // Title plumbing is a follow-up; ignore for now.
+                                true
+                            }
+                            ChildExit(_) | Exit => {
+                                this.exited = true;
+                                cx.notify();
+                                false
+                            }
+                            _ => true,
+                        }
+                    })
+                    .ok()
+                    .unwrap_or(false);
+                if !cont {
                     break;
                 }
             }
         })
         .detach();
+
         Ok(Self {
             label,
             terminal,
             focus,
+            exited: false,
         })
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        if self.exited {
+            return;
+        }
         if let Some(bytes) = input::encode(event) {
             if let Err(err) = self.terminal.write_input(&bytes) {
                 tracing::warn!(?err, "pty write failed");
@@ -71,14 +88,14 @@ impl Focusable for TerminalTab {
 
 impl Render for TerminalTab {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let snap = self.terminal.snapshot().ok();
+        let snap = self.terminal.snapshot();
         div()
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
             .size_full()
             .bg(gpui::rgb(0x111111))
             .p_2()
-            .when_some(snap, |d, snap| d.child(render_snapshot(&snap)))
+            .child(render_snapshot(&snap))
     }
 }
 
