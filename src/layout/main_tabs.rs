@@ -4,6 +4,7 @@ use gpui::{
     prelude::FluentBuilder,
 };
 use gpui_component::dock::{Panel, PanelEvent};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::Duration;
 use swrm::app_state::{AppEvent, AppState};
@@ -73,10 +74,15 @@ impl Render for TerminalTab {
     }
 }
 
+#[derive(Default)]
+struct WorkspaceTabs {
+    tabs: Vec<Entity<TerminalTab>>,
+    active_index: usize,
+}
+
 pub struct MainTabsPanel {
     pub state: Entity<AppState>,
-    pub tabs: Vec<Entity<TerminalTab>>,
-    pub active_index: usize,
+    by_workspace: HashMap<PathBuf, WorkspaceTabs>,
     pub focus: FocusHandle,
     _sub: Subscription,
 }
@@ -85,51 +91,76 @@ impl MainTabsPanel {
     pub fn new(state: Entity<AppState>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
         let sub = cx.subscribe(&state, |this, _state, event, cx| {
             if matches!(event, AppEvent::ActiveWorkspaceChanged) {
-                this.spawn_initial_tab(cx);
+                this.ensure_tab_for_active(cx);
+                cx.notify();
             }
         });
         Self {
             state,
-            tabs: Vec::new(),
-            active_index: 0,
+            by_workspace: HashMap::new(),
             focus: cx.focus_handle(),
             _sub: sub,
         }
     }
 
-    fn spawn_initial_tab(&mut self, cx: &mut Context<Self>) {
-        if !self.tabs.is_empty() {
-            return;
-        }
+    fn ensure_tab_for_active(&mut self, cx: &mut Context<Self>) {
         let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
             return;
         };
-        let tab = cx.new(|cx| TerminalTab::new("terminal 1".into(), cwd, cx).unwrap());
-        self.tabs.push(tab);
-        self.active_index = 0;
-        cx.notify();
+        if self
+            .by_workspace
+            .get(&cwd)
+            .map(|w| !w.tabs.is_empty())
+            .unwrap_or(false)
+        {
+            return;
+        }
+        let tab = cx.new(|cx| TerminalTab::new("terminal 1".into(), cwd.clone(), cx).unwrap());
+        let entry = self.by_workspace.entry(cwd).or_default();
+        entry.tabs.push(tab);
+        entry.active_index = 0;
     }
 
     fn new_tab(&mut self, cx: &mut Context<Self>) {
         let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
             return;
         };
-        let label = format!("terminal {}", self.tabs.len() + 1);
+        let entry = self.by_workspace.entry(cwd.clone()).or_default();
+        let label = format!("terminal {}", entry.tabs.len() + 1);
         let tab = cx.new(|cx| TerminalTab::new(label, cwd, cx).unwrap());
-        self.tabs.push(tab);
-        self.active_index = self.tabs.len() - 1;
+        entry.tabs.push(tab);
+        entry.active_index = entry.tabs.len() - 1;
         cx.notify();
     }
 
     fn close_active(&mut self, cx: &mut Context<Self>) {
-        if self.tabs.is_empty() {
+        let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
+            return;
+        };
+        let Some(entry) = self.by_workspace.get_mut(&cwd) else {
+            return;
+        };
+        if entry.tabs.is_empty() {
             return;
         }
-        self.tabs.remove(self.active_index);
-        if self.active_index >= self.tabs.len() && self.active_index > 0 {
-            self.active_index -= 1;
+        entry.tabs.remove(entry.active_index);
+        if entry.active_index >= entry.tabs.len() && entry.active_index > 0 {
+            entry.active_index -= 1;
         }
         cx.notify();
+    }
+
+    fn select(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
+            return;
+        };
+        let Some(entry) = self.by_workspace.get_mut(&cwd) else {
+            return;
+        };
+        if idx < entry.tabs.len() {
+            entry.active_index = idx;
+            cx.notify();
+        }
     }
 
     pub fn cmd_new_tab(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
@@ -141,10 +172,7 @@ impl MainTabsPanel {
     }
 
     pub fn cmd_select_tab(&mut self, idx: usize, cx: &mut Context<Self>) {
-        if idx < self.tabs.len() {
-            self.active_index = idx;
-            cx.notify();
-        }
+        self.select(idx, cx);
     }
 }
 
@@ -156,23 +184,27 @@ impl Focusable for MainTabsPanel {
 
 impl Render for MainTabsPanel {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let active_workspace = self.state.read(cx).active_workspace.clone();
+        let entry = active_workspace.as_ref().and_then(|p| self.by_workspace.get(p));
         let mut bar = div().flex().flex_row().gap_2().p_2();
-        for (idx, tab) in self.tabs.iter().enumerate() {
-            let label = tab.read(cx).label.clone();
-            let is_active = idx == self.active_index;
-            bar = bar.child(
-                div()
-                    .px_2()
-                    .py_1()
-                    .when(is_active, |d| d.bg(gpui::rgb(0x3a3a3a)))
-                    .child(label)
-                    .on_mouse_down(MouseButton::Left, cx.listener(move |this, _, _, cx| {
-                        this.active_index = idx;
-                        cx.notify();
-                    })),
-            );
+        if let Some(entry) = entry {
+            for (idx, tab) in entry.tabs.iter().enumerate() {
+                let label = tab.read(cx).label.clone();
+                let is_active = idx == entry.active_index;
+                bar = bar.child(
+                    div()
+                        .px_2()
+                        .py_1()
+                        .when(is_active, |d| d.bg(gpui::rgb(0x3a3a3a)))
+                        .child(label)
+                        .on_mouse_down(
+                            MouseButton::Left,
+                            cx.listener(move |this, _, _, cx| this.select(idx, cx)),
+                        ),
+                );
+            }
         }
-        let active = self.tabs.get(self.active_index).cloned();
+        let active_tab = entry.and_then(|e| e.tabs.get(e.active_index)).cloned();
 
         div()
             .track_focus(&self.focus)
@@ -180,7 +212,7 @@ impl Render for MainTabsPanel {
             .flex_col()
             .size_full()
             .child(bar)
-            .when_some(active, |d, tab| d.child(tab))
+            .when_some(active_tab, |d, tab| d.child(tab))
     }
 }
 

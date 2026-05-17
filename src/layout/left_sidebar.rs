@@ -1,6 +1,6 @@
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, PathPromptOptions, Render, Styled, Window, div,
+    ParentElement, PathPromptOptions, Render, Styled, Subscription, Window, div,
     prelude::FluentBuilder,
 };
 use gpui_component::button::Button;
@@ -12,13 +12,20 @@ use swrm::workspace::{self, Workspace};
 pub struct LeftSidebarPanel {
     pub state: Entity<AppState>,
     focus_handle: FocusHandle,
+    _state_sub: Subscription,
+    _store_sub: Subscription,
 }
 
 impl LeftSidebarPanel {
     pub fn new(state: Entity<AppState>, _window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let state_sub = cx.observe(&state, |_, _, cx| cx.notify());
+        let store = state.read(cx).workspaces.clone();
+        let store_sub = cx.observe(&store, |_, _, cx| cx.notify());
         Self {
             state,
             focus_handle: cx.focus_handle(),
+            _state_sub: state_sub,
+            _store_sub: store_sub,
         }
     }
 
