@@ -19,17 +19,6 @@ A native Rust desktop app for managing multiple Git worktrees side-by-side, insp
 | Run a single test function | `cargo test <fn_name>` |
 | Format | `cargo fmt` (the whole tree is kept rustfmt-clean) |
 
-### First-build setup (macOS)
-
-`libghostty-vt` invokes `zig build` from a build script and pins **Zig 0.15.2**. The system default is usually newer (0.16+), which fails. Install `zig@0.15` via Homebrew and prepend it for fresh/clean builds:
-
-```bash
-brew install zig@0.15
-PATH="/opt/homebrew/opt/zig@0.15/bin:$PATH" cargo build
-```
-
-Incremental builds reuse the cached build-script output and don't need the override; only do this for the first build or after `cargo clean`.
-
 ## Architecture in one breath
 
 Single-process gpui app. `main.rs` wires the runtime; `app::Root` is the only top-level view (wrapped inside `gpui_component::Root`, which gpui-component widgets look up for tooltips/notifications and **for shaping text** — without that wrapper, text doesn't render). `Root` owns `AppState` (active workspace + sidebar visibility + the `WorkspaceStore` entity) and a `Layout` struct exposing the `DockArea` and the three panel entities.
@@ -38,11 +27,11 @@ The three panels are gpui-component `Panel`s living in a `DockArea`:
 
 - `layout::left_sidebar::LeftSidebarPanel` — uses `gpui_component::list::{List, ListState, ListDelegate}` with a `WorkspacesDelegate` that groups `Workspace`s by `project_dir` (parent of `gix::Repository::common_dir()`) into sections.
 - `layout::right_sidebar::RightSidebarPanel` — subscribes to `AppEvent::ActiveWorkspaceChanged`, calls `git::collect_status` on the background executor, renders a click-to-diff list and a refresh button.
-- `layout::main_tabs::MainTabsPanel` — owns `HashMap<PathBuf, WorkspaceTabs>` keyed by workspace path, so each workspace keeps its own terminal tab set (`ensure_tab_for_active` on workspace change spawns a tab only if that workspace has none). The visible tab strip is `gpui_component::tab::TabBar`; the inner `TerminalTab` view runs a 16ms tick loop that drains its PTY into `libghostty-vt`'s VT state machine and triggers re-render.
+- `layout::main_tabs::MainTabsPanel` — owns `HashMap<PathBuf, WorkspaceTabs>` keyed by workspace path, so each workspace keeps its own terminal tab set (`ensure_tab_for_active` on workspace change spawns a tab only if that workspace has none). The visible tab strip is `gpui_component::tab::TabBar`; the inner `TerminalTab` view spawns an async task that consumes `alacritty_terminal::event::Event`s from the PTY and notifies gpui to re-render on terminal activity.
 
 `workspace::Workspace` (in `src/workspace/mod.rs`) is `{ label, path, branch, project: Option<PathBuf> }`. The `project` field is `None` for entries persisted before it was introduced — always go through `Workspace::project_dir()` which falls back to `path`.
 
-`terminal::Terminal` glues `pty::PtySession` (spawns `$SHELL` via `portable-pty`, reader thread pipes bytes onto an `mpsc::Receiver`) with `vt::VtWrapper` (libghostty-vt `Terminal` + `RenderState` + reusable `RowIterator`/`CellIterator`). `Terminal::tick()` drains the PTY channel into the VT and returns `true` if anything changed. `terminal::render::render_snapshot` rasters the `Snapshot` cell grid as one `div` per row in JetBrains Mono.
+`terminal::Terminal` wraps a `Backend` that owns `alacritty_terminal::term::Term<SwrmListener>` and an `EventLoop` powering `alacritty_terminal::tty::new`. Events (cursor moves, mode changes, bell, exit) flow through `SwrmListener` as an unbounded mpsc channel. Snapshots are fetched via `Terminal::snapshot()`, which locks the term and iterates cells, then rasters them as one `div` per row in JetBrains Mono in `terminal::render::render_snapshot`.
 
 `AppState`, `WorkspaceStore`, panels, and `TerminalTab` all use the standard gpui pattern: `cx.subscribe(&entity, |this, _, event, cx| …)` for typed events, `cx.observe(&entity, |this, _, cx| cx.notify())` for general "something changed" reactivity. Always store the returned `Subscription` on the view struct or it cancels.
 
