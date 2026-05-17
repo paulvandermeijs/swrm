@@ -125,6 +125,7 @@ impl Render for TerminalTab {
             .on_scroll_wheel(cx.listener(Self::on_scroll))
             .size_full()
             .bg(gpui::rgb(0x111111))
+            .p_2()
             .relative()
             .child(render_snapshot(&snap))
             .child(
