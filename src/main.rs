@@ -1,4 +1,5 @@
 mod app;
+mod app_state;
 
 use anyhow::Result;
 use gpui::{App, AppContext, Bounds, WindowBounds, WindowOptions, px, size};
@@ -23,7 +24,7 @@ fn main() -> Result<()> {
                 }),
                 ..Default::default()
             },
-            |_window, cx| cx.new(|_| app::Root::new()),
+            |_window, cx| cx.new(|cx| app::Root::new(cx)),
         )
         .expect("failed to open window");
         cx.activate(true);

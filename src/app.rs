@@ -1,10 +1,14 @@
-use gpui::{Context, IntoElement, ParentElement, Render, Styled, Window, div, rgb};
+use crate::app_state::AppState;
+use gpui::{AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, div, rgb};
 
-pub struct Root;
+pub struct Root {
+    pub state: Entity<AppState>,
+}
 
 impl Root {
-    pub fn new() -> Self {
-        Self
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let state = cx.new(|_| AppState::new());
+        Self { state }
     }
 }
 
@@ -14,10 +18,8 @@ impl Render for Root {
             .flex()
             .flex_col()
             .size_full()
-            .items_center()
-            .justify_center()
             .bg(rgb(0x1e1e1e))
             .text_color(rgb(0xeeeeee))
-            .child("swrm")
+            .child("swrm — state ready")
     }
 }
