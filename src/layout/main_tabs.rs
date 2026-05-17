@@ -32,20 +32,18 @@ impl TerminalTab {
             while let Some(event) = events.next().await {
                 use alacritty_terminal::event::Event;
                 let cont = this
-                    .update(cx, |this, cx| {
-                        match event {
-                            Event::Wakeup | Event::Bell | Event::MouseCursorDirty => {
-                                cx.notify();
-                                true
-                            }
-                            Event::Title(_) | Event::ResetTitle => true,
-                            Event::ChildExit(_) | Event::Exit => {
-                                this.exited = true;
-                                cx.notify();
-                                false
-                            }
-                            _ => true,
+                    .update(cx, |this, cx| match event {
+                        Event::Wakeup | Event::Bell | Event::MouseCursorDirty => {
+                            cx.notify();
+                            true
                         }
+                        Event::Title(_) | Event::ResetTitle => true,
+                        Event::ChildExit(_) | Event::Exit => {
+                            this.exited = true;
+                            cx.notify();
+                            false
+                        }
+                        _ => true,
                     })
                     .ok()
                     .unwrap_or(false);
@@ -68,7 +66,7 @@ impl TerminalTab {
         if self.exited {
             return;
         }
-        if let Some(bytes) = input::encode(event) {
+        if let Some(bytes) = input::encode(event, self.terminal.mode()) {
             if let Err(err) = self.terminal.write_input(&bytes) {
                 tracing::warn!(?err, "pty write failed");
             }
