@@ -13,3 +13,4 @@ pub struct Workspace {
 }
 
 pub use worktree::{create_worktree, current_branch, list_worktrees, validate_repo};
+pub use store::{WorkspaceEvent, WorkspaceStore};

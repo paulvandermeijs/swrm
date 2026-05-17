@@ -1,4 +1,5 @@
-use gpui::{Context, EventEmitter};
+use crate::workspace::WorkspaceStore;
+use gpui::{AppContext, Context, Entity, EventEmitter};
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -8,14 +9,17 @@ pub enum AppEvent {
 }
 
 pub struct AppState {
+    pub workspaces: Entity<WorkspaceStore>,
     pub active_workspace: Option<PathBuf>,
     pub left_sidebar_visible: bool,
     pub right_sidebar_visible: bool,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let workspaces = cx.new(|cx| WorkspaceStore::load(cx));
         Self {
+            workspaces,
             active_workspace: None,
             left_sidebar_visible: true,
             right_sidebar_visible: true,

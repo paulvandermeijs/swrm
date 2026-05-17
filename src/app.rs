@@ -12,7 +12,7 @@ pub struct Root {
 
 impl Root {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let state = cx.new(|_| AppState::new());
+        let state = cx.new(|cx| AppState::new(cx));
         let dock = cx.new(|cx| layout::build(state.clone(), window, cx));
         Self { state, dock }
     }
