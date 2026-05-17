@@ -1,5 +1,6 @@
 mod app;
 mod app_state;
+mod layout;
 
 use anyhow::Result;
 use gpui::{App, AppContext, Bounds, WindowBounds, WindowOptions, px, size};
