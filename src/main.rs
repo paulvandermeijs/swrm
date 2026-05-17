@@ -21,14 +21,16 @@ fn main() -> Result<()> {
             gpui_component::init(cx);
             Theme::change(ThemeMode::Dark, None, cx);
 
-            // Bundle a known-good TTF so the in-memory font source can satisfy lookups.
-            // System fonts via SystemSource fallback have been unreliable in this gpui rev.
-            let jetbrains_mono: Cow<'static, [u8]> =
-                Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf"));
+            // Bundle open-source fonts: IBM Plex Sans for UI, JetBrains Mono for the terminal.
+            let fonts: Vec<Cow<'static, [u8]>> = vec![
+                Cow::Borrowed(include_bytes!("../assets/fonts/IBMPlexSans-Regular.ttf")),
+                Cow::Borrowed(include_bytes!("../assets/fonts/IBMPlexSans-SemiBold.ttf")),
+                Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf")),
+            ];
             cx.text_system()
-                .add_fonts(vec![jetbrains_mono])
+                .add_fonts(fonts)
                 .expect("load bundled fonts");
-            cx.global_mut::<Theme>().font_family = "JetBrains Mono".into();
+            cx.global_mut::<Theme>().font_family = "IBM Plex Sans".into();
             cx.global_mut::<Theme>().mono_font_family = "JetBrains Mono".into();
 
             cx.bind_keys([
