@@ -1,8 +1,9 @@
 use crate::layout::{self, Layout};
 use gpui::{
     App, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
-    Styled, Window, actions, div, rgb,
+    Styled, Window, actions, div,
 };
+use gpui_component::ActiveTheme;
 use gpui_component::dock::DockPlacement;
 use swrm::app_state::AppState;
 
@@ -39,13 +40,19 @@ impl Root {
 }
 
 impl Render for Root {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let dock = self.layout.dock.clone();
         let tabs = self.layout.tabs.clone();
         let state = self.state.clone();
 
+        // Mirror what gpui_component::Root does: apply theme font/colors to the root div.
+        window.set_rem_size(cx.theme().font_size);
+
         div()
             .key_context("Root")
+            .font_family(cx.theme().font_family.clone())
+            .bg(cx.theme().background)
+            .text_color(cx.theme().foreground)
             .on_action({
                 let dock = dock.clone();
                 let state = state.clone();
@@ -129,8 +136,6 @@ impl Render for Root {
                 }
             })
             .size_full()
-            .bg(rgb(0x1e1e1e))
-            .text_color(rgb(0xeeeeee))
             .child(self.layout.dock.clone())
     }
 }

@@ -8,8 +8,9 @@ anyhow = "1"
 dirs = "6"
 gix = { version = "0.83", default-features = false, features = ["sha1", "status", "worktree-mutation", "blocking-network-client"] }
 gpui = { git = "https://github.com/zed-industries/zed" }
-gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["runtime_shaders"] }
+gpui_platform = { git = "https://github.com/zed-industries/zed", features = ["font-kit", "runtime_shaders"] }
 gpui-component = { git = "https://github.com/longbridge/gpui-component", branch = "main" }
+gpui-component-assets = { git = "https://github.com/longbridge/gpui-component", branch = "main" }
 libghostty-vt = { git = "https://github.com/Uzaaft/libghostty-rs" }
 portable-pty = "0.9"
 serde = { version = "1", features = ["derive"] }

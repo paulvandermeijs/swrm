@@ -3,6 +3,8 @@ mod layout;
 
 use anyhow::Result;
 use gpui::{App, AppContext, Bounds, WindowBounds, WindowOptions, px, size};
+use gpui_component::{Theme, ThemeMode};
+use std::borrow::Cow;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<()> {
@@ -13,37 +15,54 @@ fn main() -> Result<()> {
         )
         .init();
 
-    gpui_platform::application().run(|cx: &mut App| {
-        gpui_component::init(cx);
-        cx.bind_keys([
-            gpui::KeyBinding::new("cmd-b", app::ToggleLeftSidebar, Some("Root")),
-            gpui::KeyBinding::new("cmd-l", app::ToggleRightSidebar, Some("Root")),
-            gpui::KeyBinding::new("cmd-t", app::NewTab, Some("Root")),
-            gpui::KeyBinding::new("cmd-w", app::CloseTab, Some("Root")),
-            gpui::KeyBinding::new("cmd-1", app::SelectTab1, Some("Root")),
-            gpui::KeyBinding::new("cmd-2", app::SelectTab2, Some("Root")),
-            gpui::KeyBinding::new("cmd-3", app::SelectTab3, Some("Root")),
-            gpui::KeyBinding::new("cmd-4", app::SelectTab4, Some("Root")),
-            gpui::KeyBinding::new("cmd-5", app::SelectTab5, Some("Root")),
-            gpui::KeyBinding::new("cmd-6", app::SelectTab6, Some("Root")),
-            gpui::KeyBinding::new("cmd-7", app::SelectTab7, Some("Root")),
-            gpui::KeyBinding::new("cmd-8", app::SelectTab8, Some("Root")),
-            gpui::KeyBinding::new("cmd-9", app::SelectTab9, Some("Root")),
-        ]);
-        let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
-        cx.open_window(
-            WindowOptions {
-                window_bounds: Some(WindowBounds::Windowed(bounds)),
-                titlebar: Some(gpui::TitlebarOptions {
-                    title: Some("swrm".into()),
+    gpui_platform::application()
+        .with_assets(gpui_component_assets::Assets)
+        .run(|cx: &mut App| {
+            gpui_component::init(cx);
+            Theme::change(ThemeMode::Dark, None, cx);
+
+            // Bundle a known-good TTF so the in-memory font source can satisfy lookups.
+            // System fonts via SystemSource fallback have been unreliable in this gpui rev.
+            let jetbrains_mono: Cow<'static, [u8]> =
+                Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf"));
+            cx.text_system()
+                .add_fonts(vec![jetbrains_mono])
+                .expect("load bundled fonts");
+            cx.global_mut::<Theme>().font_family = "JetBrains Mono".into();
+            cx.global_mut::<Theme>().mono_font_family = "JetBrains Mono".into();
+
+            cx.bind_keys([
+                gpui::KeyBinding::new("cmd-b", app::ToggleLeftSidebar, Some("Root")),
+                gpui::KeyBinding::new("cmd-l", app::ToggleRightSidebar, Some("Root")),
+                gpui::KeyBinding::new("cmd-t", app::NewTab, Some("Root")),
+                gpui::KeyBinding::new("cmd-w", app::CloseTab, Some("Root")),
+                gpui::KeyBinding::new("cmd-1", app::SelectTab1, Some("Root")),
+                gpui::KeyBinding::new("cmd-2", app::SelectTab2, Some("Root")),
+                gpui::KeyBinding::new("cmd-3", app::SelectTab3, Some("Root")),
+                gpui::KeyBinding::new("cmd-4", app::SelectTab4, Some("Root")),
+                gpui::KeyBinding::new("cmd-5", app::SelectTab5, Some("Root")),
+                gpui::KeyBinding::new("cmd-6", app::SelectTab6, Some("Root")),
+                gpui::KeyBinding::new("cmd-7", app::SelectTab7, Some("Root")),
+                gpui::KeyBinding::new("cmd-8", app::SelectTab8, Some("Root")),
+                gpui::KeyBinding::new("cmd-9", app::SelectTab9, Some("Root")),
+            ]);
+            let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
+            cx.open_window(
+                WindowOptions {
+                    window_bounds: Some(WindowBounds::Windowed(bounds)),
+                    titlebar: Some(gpui::TitlebarOptions {
+                        title: Some("swrm".into()),
+                        ..Default::default()
+                    }),
                     ..Default::default()
-                }),
-                ..Default::default()
-            },
-            |window, cx| cx.new(|cx| app::Root::new(window, cx)),
-        )
-        .expect("failed to open window");
-        cx.activate(true);
-    });
+                },
+                |window, cx| {
+                    let app_root = cx.new(|cx| app::Root::new(window, cx));
+                    cx.new(|cx| gpui_component::Root::new(app_root, window, cx))
+                },
+            )
+            .expect("failed to open window");
+            cx.activate(true);
+        });
     Ok(())
 }
