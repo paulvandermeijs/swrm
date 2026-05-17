@@ -6,8 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1"
 dirs = "6"
-# gix re-add when gitoxide fixes gix-hash #[non_exhaustive] + Rust 1.95 (edition 2024) compile error
-# gix = { version = "0.83", default-features = false, features = ["status", "worktree-mutation", "blocking-network-client"] }
+gix = { version = "0.83", default-features = false, features = ["sha1", "status", "worktree-mutation", "blocking-network-client"] }
 gpui = { git = "https://github.com/zed-industries/zed", branch = "main" }
 gpui-component = { git = "https://github.com/longbridge/gpui-component", branch = "main" }
 portable-pty = "0.9"
