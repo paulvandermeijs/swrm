@@ -15,6 +15,7 @@ fn main() -> Result<()> {
         .init();
 
     gpui_platform::application().run(|cx: &mut App| {
+        gpui_component::init(cx);
         let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
         cx.open_window(
             WindowOptions {
@@ -25,7 +26,7 @@ fn main() -> Result<()> {
                 }),
                 ..Default::default()
             },
-            |_window, cx| cx.new(|cx| app::Root::new(cx)),
+            |window, cx| cx.new(|cx| app::Root::new(window, cx)),
         )
         .expect("failed to open window");
         cx.activate(true);
