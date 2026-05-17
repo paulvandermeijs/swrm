@@ -1,5 +1,4 @@
 mod app;
-mod app_state;
 mod layout;
 
 use anyhow::Result;

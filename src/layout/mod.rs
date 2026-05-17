@@ -6,7 +6,7 @@ pub use left_sidebar::LeftSidebarPanel;
 pub use main_tabs::MainTabsPanel;
 pub use right_sidebar::RightSidebarPanel;
 
-use crate::app_state::AppState;
+use swrm::app_state::AppState;
 use gpui::{AppContext, Context, Entity, Window};
 use gpui_component::dock::{DockArea, DockItem, DockPlacement};
 use std::sync::Arc;

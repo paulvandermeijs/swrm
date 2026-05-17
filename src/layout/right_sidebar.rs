@@ -1,4 +1,4 @@
-use crate::app_state::AppState;
+use swrm::app_state::AppState;
 use gpui::{App, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement, ParentElement, Render, Styled, Window, div};
 use gpui_component::dock::{Panel, PanelEvent};
 

@@ -1,4 +1,4 @@
-use crate::app_state::AppState;
+use swrm::app_state::AppState;
 use crate::layout;
 use gpui::{App, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render, Styled, Window, actions, div, rgb};
 use gpui_component::dock::DockArea;
