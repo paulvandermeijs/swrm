@@ -259,6 +259,10 @@ impl Panel for MainTabsPanel {
         "main-tabs"
     }
 
+    fn zoomable(&self, _cx: &App) -> Option<gpui_component::dock::PanelControl> {
+        None
+    }
+
     fn title(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let (active_path, store) = {
             let s = self.state.read(cx);

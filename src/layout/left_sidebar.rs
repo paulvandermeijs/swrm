@@ -318,6 +318,10 @@ impl Panel for LeftSidebarPanel {
         "left-sidebar"
     }
 
+    fn zoomable(&self, _cx: &App) -> Option<gpui_component::dock::PanelControl> {
+        None
+    }
+
     fn title(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         "Workspaces"
     }
