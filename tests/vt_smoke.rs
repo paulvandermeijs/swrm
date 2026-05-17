@@ -26,7 +26,11 @@ fn sgr_bold_red_sets_cell_flags_and_fg() {
     let snap = term.snapshot();
     let cell = snap.cell_at(0, 0).expect("cell at 0,0");
     assert_eq!(cell.ch, 'X');
-    assert!(cell.flags.contains(CellFlags::BOLD), "expected BOLD, got {:?}", cell.flags);
+    assert!(
+        cell.flags.contains(CellFlags::BOLD),
+        "expected BOLD, got {:?}",
+        cell.flags
+    );
     // ANSI palette index 1 is 0xcd0000.
     assert_eq!(cell.fg, 0x00cd_0000, "fg = 0x{:08x}", cell.fg);
 }

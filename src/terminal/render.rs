@@ -43,10 +43,7 @@ fn render_run(run: &[Cell]) -> impl IntoElement {
     let head = &run[0];
     let text: String = run.iter().map(|c| c.ch).collect();
 
-    let mut el = div()
-        .text_color(rgb(head.fg))
-        .bg(rgb(head.bg))
-        .child(text);
+    let mut el = div().text_color(rgb(head.fg)).bg(rgb(head.bg)).child(text);
 
     if head.flags.contains(CellFlags::BOLD) {
         el = el.font_weight(gpui::FontWeight::BOLD);
