@@ -1,7 +1,6 @@
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, Styled, Subscription, Window, div,
-    prelude::FluentBuilder,
+    KeyDownEvent, ParentElement, Render, Styled, Subscription, Window, div, prelude::FluentBuilder,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::dock::{Panel, PanelEvent};
@@ -25,7 +24,9 @@ impl TerminalTab {
         let focus = cx.focus_handle();
         cx.spawn(async move |this, cx| {
             loop {
-                cx.background_executor().timer(Duration::from_millis(16)).await;
+                cx.background_executor()
+                    .timer(Duration::from_millis(16))
+                    .await;
                 let cont = this.update(cx, |this, cx| {
                     let changed = this.terminal.tick();
                     if changed {
@@ -45,7 +46,11 @@ impl TerminalTab {
             }
         })
         .detach();
-        Ok(Self { label, terminal, focus })
+        Ok(Self {
+            label,
+            terminal,
+            focus,
+        })
     }
 
     fn on_key(&mut self, event: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {

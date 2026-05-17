@@ -4,7 +4,11 @@ use swrm::git;
 use tempfile::TempDir;
 
 fn run(dir: &std::path::Path, args: &[&str]) {
-    let status = Command::new("git").args(args).current_dir(dir).status().unwrap();
+    let status = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .status()
+        .unwrap();
     assert!(status.success(), "git {:?} failed", args);
 }
 

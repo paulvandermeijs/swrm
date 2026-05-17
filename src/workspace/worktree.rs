@@ -6,7 +6,10 @@ pub fn validate_repo(path: &Path) -> Result<gix::Repository> {
 }
 
 pub fn current_branch(repo: &gix::Repository) -> Option<String> {
-    repo.head_name().ok().flatten().map(|name| name.shorten().to_string())
+    repo.head_name()
+        .ok()
+        .flatten()
+        .map(|name| name.shorten().to_string())
 }
 
 /// Returns the workdir of the main repository for the given (possibly worktree)
@@ -19,7 +22,11 @@ pub fn project_dir(repo: &gix::Repository) -> PathBuf {
 
 pub fn list_worktrees(repo: &gix::Repository) -> Result<Vec<PathBuf>> {
     let mut out = Vec::new();
-    out.push(repo.workdir().context("bare repo not supported")?.to_path_buf());
+    out.push(
+        repo.workdir()
+            .context("bare repo not supported")?
+            .to_path_buf(),
+    );
     for proxy in repo.worktrees()? {
         if let Ok(repo) = proxy.into_repo() {
             if let Some(dir) = repo.workdir() {

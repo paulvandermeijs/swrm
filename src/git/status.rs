@@ -32,56 +32,68 @@ pub fn collect_status(repo_path: &Path) -> Result<Vec<StatusEntry>> {
             gix::status::Item::TreeIndex(change) => {
                 use gix::diff::index::Change as TreeChange;
                 let (path, status) = match &change {
-                    TreeChange::Addition { location, .. } => {
-                        (location.as_bstr().to_path_lossy().into_owned(), Status::Added)
-                    }
-                    TreeChange::Deletion { location, .. } => {
-                        (location.as_bstr().to_path_lossy().into_owned(), Status::Deleted)
-                    }
-                    TreeChange::Modification { location, .. } => {
-                        (location.as_bstr().to_path_lossy().into_owned(), Status::Modified)
-                    }
-                    TreeChange::Rewrite {
-                        location, copy, ..
-                    } => {
-                        let status = if *copy { Status::Added } else { Status::Renamed };
+                    TreeChange::Addition { location, .. } => (
+                        location.as_bstr().to_path_lossy().into_owned(),
+                        Status::Added,
+                    ),
+                    TreeChange::Deletion { location, .. } => (
+                        location.as_bstr().to_path_lossy().into_owned(),
+                        Status::Deleted,
+                    ),
+                    TreeChange::Modification { location, .. } => (
+                        location.as_bstr().to_path_lossy().into_owned(),
+                        Status::Modified,
+                    ),
+                    TreeChange::Rewrite { location, copy, .. } => {
+                        let status = if *copy {
+                            Status::Added
+                        } else {
+                            Status::Renamed
+                        };
                         (location.as_bstr().to_path_lossy().into_owned(), status)
                     }
                 };
                 entries.push(StatusEntry { path, status });
             }
             // Changes between index and worktree (unstaged changes + untracked files)
-            gix::status::Item::IndexWorktree(iw_item) => {
-                match iw_item {
-                    IwItem::Modification { rela_path, status, .. } => {
-                        let mapped = match status {
-                            EntryStatus::Change(Change::Removed) => Status::Deleted,
-                            EntryStatus::Change(Change::Modification { .. })
-                            | EntryStatus::Change(Change::SubmoduleModification(_))
-                            | EntryStatus::Change(Change::Type { .. }) => Status::Modified,
-                            EntryStatus::Conflict { .. } => Status::Modified,
-                            EntryStatus::IntentToAdd => Status::Added,
-                            EntryStatus::NeedsUpdate(_) => continue,
-                        };
-                        let path = rela_path.to_path_lossy().into_owned();
-                        entries.push(StatusEntry { path, status: mapped });
-                    }
-                    IwItem::DirectoryContents { entry, .. } => {
-                        if matches!(entry.status, gix::dir::entry::Status::Untracked) {
-                            let path = entry.rela_path.to_path_lossy().into_owned();
-                            entries.push(StatusEntry {
-                                path,
-                                status: Status::Untracked,
-                            });
-                        }
-                    }
-                    IwItem::Rewrite { dirwalk_entry, copy, .. } => {
-                        let status = if copy { Status::Added } else { Status::Renamed };
-                        let path = dirwalk_entry.rela_path.to_path_lossy().into_owned();
-                        entries.push(StatusEntry { path, status });
+            gix::status::Item::IndexWorktree(iw_item) => match iw_item {
+                IwItem::Modification {
+                    rela_path, status, ..
+                } => {
+                    let mapped = match status {
+                        EntryStatus::Change(Change::Removed) => Status::Deleted,
+                        EntryStatus::Change(Change::Modification { .. })
+                        | EntryStatus::Change(Change::SubmoduleModification(_))
+                        | EntryStatus::Change(Change::Type { .. }) => Status::Modified,
+                        EntryStatus::Conflict { .. } => Status::Modified,
+                        EntryStatus::IntentToAdd => Status::Added,
+                        EntryStatus::NeedsUpdate(_) => continue,
+                    };
+                    let path = rela_path.to_path_lossy().into_owned();
+                    entries.push(StatusEntry {
+                        path,
+                        status: mapped,
+                    });
+                }
+                IwItem::DirectoryContents { entry, .. } => {
+                    if matches!(entry.status, gix::dir::entry::Status::Untracked) {
+                        let path = entry.rela_path.to_path_lossy().into_owned();
+                        entries.push(StatusEntry {
+                            path,
+                            status: Status::Untracked,
+                        });
                     }
                 }
-            }
+                IwItem::Rewrite {
+                    dirwalk_entry,
+                    copy,
+                    ..
+                } => {
+                    let status = if copy { Status::Added } else { Status::Renamed };
+                    let path = dirwalk_entry.rela_path.to_path_lossy().into_owned();
+                    entries.push(StatusEntry { path, status });
+                }
+            },
         }
     }
 

@@ -19,10 +19,17 @@ pub fn encode(event: &KeyDownEvent) -> Option<Vec<u8>> {
         "right" => Some(b"\x1b[C".to_vec()),
         "up" => Some(b"\x1b[A".to_vec()),
         "down" => Some(b"\x1b[B".to_vec()),
-        _ => keystroke.key_char.clone().or_else(|| {
-            let k = &keystroke.key;
-            if k.chars().count() == 1 { Some(k.clone()) } else { None }
-        })
-        .map(|s| s.into_bytes()),
+        _ => keystroke
+            .key_char
+            .clone()
+            .or_else(|| {
+                let k = &keystroke.key;
+                if k.chars().count() == 1 {
+                    Some(k.clone())
+                } else {
+                    None
+                }
+            })
+            .map(|s| s.into_bytes()),
     }
 }

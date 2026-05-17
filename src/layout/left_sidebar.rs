@@ -136,7 +136,9 @@ impl ListDelegate for WorkspacesDelegate {
         _window: &mut Window,
         cx: &mut Context<ListState<Self>>,
     ) {
-        let Some(ix) = self.selected_index else { return };
+        let Some(ix) = self.selected_index else {
+            return;
+        };
         let Some(ws) = self
             .sections
             .get(ix.section)
@@ -219,8 +221,12 @@ impl LeftSidebarPanel {
             prompt: None,
         });
         cx.spawn_in(window, async move |this, cx| {
-            let Ok(Ok(Some(paths))) = task.await else { return };
-            let Some(target) = paths.into_iter().next() else { return };
+            let Ok(Ok(Some(paths))) = task.await else {
+                return;
+            };
+            let Some(target) = paths.into_iter().next() else {
+                return;
+            };
             let _ = this.update(cx, |this, cx| {
                 let repo = match workspace::validate_repo(&active) {
                     Ok(r) => r,

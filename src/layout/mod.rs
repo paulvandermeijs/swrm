@@ -44,5 +44,10 @@ pub fn build<T: 'static>(
         area
     });
 
-    Layout { dock, left, right, tabs }
+    Layout {
+        dock,
+        left,
+        right,
+        tabs,
+    }
 }

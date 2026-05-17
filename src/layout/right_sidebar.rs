@@ -1,8 +1,8 @@
+use gpui::prelude::FluentBuilder;
 use gpui::{
     App, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Render, Styled, Subscription, Window, div,
 };
-use gpui::prelude::FluentBuilder;
 use gpui_component::button::Button;
 use gpui_component::dock::{Panel, PanelEvent};
 use std::path::PathBuf;
@@ -119,9 +119,12 @@ impl Render for RightSidebarPanel {
                     .when(is_selected, |d| d.bg(gpui::rgb(0x3a3a3a)))
                     .child(div().w_4().child(badge))
                     .child(entry.path.display().to_string())
-                    .on_mouse_down(MouseButton::Left, cx.listener(move |this, _, _, cx| {
-                        this.select(path.clone(), cx);
-                    })),
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _, _, cx| {
+                            this.select(path.clone(), cx);
+                        }),
+                    ),
             );
         }
 
@@ -138,12 +141,7 @@ impl Render for RightSidebarPanel {
                     .on_click(cx.listener(|this, _, _, cx| this.refresh(cx))),
             )
             .child(list)
-            .child(
-                div()
-                    .mt_2()
-                    .text_xs()
-                    .child(self.diff_text.clone()),
-            )
+            .child(div().mt_2().text_xs().child(self.diff_text.clone()))
     }
 }
 

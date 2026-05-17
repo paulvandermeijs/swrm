@@ -3,8 +3,8 @@ use gpui::{
     App, AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
     Styled, Window, actions, div,
 };
-use gpui_component::ActiveTheme;
 use gpui_component::dock::DockPlacement;
+use gpui_component::{ActiveTheme, TitleBar, h_flex, v_flex};
 use swrm::app_state::AppState;
 
 actions!(
@@ -47,6 +47,15 @@ impl Render for Root {
 
         // Mirror what gpui_component::Root does: apply theme font/colors to the root div.
         window.set_rem_size(cx.theme().font_size);
+
+        let title = h_flex()
+            .w_full()
+            .justify_center()
+            .child(div().text_sm().child("swrm"));
+        let body = v_flex()
+            .size_full()
+            .child(TitleBar::new().child(title))
+            .child(div().flex_1().child(self.layout.dock.clone()));
 
         div()
             .key_context("Root")
@@ -136,6 +145,6 @@ impl Render for Root {
                 }
             })
             .size_full()
-            .child(self.layout.dock.clone())
+            .child(body)
     }
 }

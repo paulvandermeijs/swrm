@@ -3,15 +3,14 @@ mod layout;
 
 use anyhow::Result;
 use gpui::{App, AppContext, Bounds, WindowBounds, WindowOptions, px, size};
-use gpui_component::{Theme, ThemeMode};
+use gpui_component::{Theme, ThemeMode, TitleBar};
 use std::borrow::Cow;
 use tracing_subscriber::EnvFilter;
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,swrm=debug")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,swrm=debug")),
         )
         .init();
 
@@ -52,10 +51,7 @@ fn main() -> Result<()> {
             cx.open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    titlebar: Some(gpui::TitlebarOptions {
-                        title: Some("swrm".into()),
-                        ..Default::default()
-                    }),
+                    titlebar: Some(TitleBar::title_bar_options()),
                     ..Default::default()
                 },
                 |window, cx| {
