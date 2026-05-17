@@ -30,19 +30,16 @@ impl TerminalTab {
             use futures::StreamExt;
             let mut events = events;
             while let Some(event) = events.next().await {
-                use alacritty_terminal::event::Event::*;
+                use alacritty_terminal::event::Event;
                 let cont = this
                     .update(cx, |this, cx| {
                         match event {
-                            Wakeup | Bell | MouseCursorDirty => {
+                            Event::Wakeup | Event::Bell | Event::MouseCursorDirty => {
                                 cx.notify();
                                 true
                             }
-                            Title(_) | ResetTitle => {
-                                // Title plumbing is a follow-up; ignore for now.
-                                true
-                            }
-                            ChildExit(_) | Exit => {
+                            Event::Title(_) | Event::ResetTitle => true,
+                            Event::ChildExit(_) | Event::Exit => {
                                 this.exited = true;
                                 cx.notify();
                                 false
