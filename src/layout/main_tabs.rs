@@ -1,6 +1,7 @@
 use gpui::{
     App, AppContext, Context, Entity, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyDownEvent, ParentElement, Render, Styled, Subscription, Window, div, prelude::FluentBuilder,
+    KeyDownEvent, ParentElement, Render, ScrollWheelEvent, Styled, Subscription, Window, div,
+    prelude::FluentBuilder,
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::dock::{Panel, PanelEvent};
@@ -73,6 +74,23 @@ impl TerminalTab {
             cx.notify();
         }
     }
+
+    fn on_scroll(
+        &mut self,
+        event: &ScrollWheelEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        // Approximate line height in px, matching the renderer's text_size(px(13.)).
+        let line_height_px: f32 = 18.0;
+        let delta_y = event.delta.pixel_delta(gpui::px(line_height_px)).y.as_f32();
+        let lines = (delta_y / line_height_px) as i32;
+        if lines == 0 {
+            return;
+        }
+        self.terminal.scroll(lines);
+        cx.notify();
+    }
 }
 
 impl Focusable for TerminalTab {
@@ -87,6 +105,7 @@ impl Render for TerminalTab {
         div()
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::on_key))
+            .on_scroll_wheel(cx.listener(Self::on_scroll))
             .size_full()
             .bg(gpui::rgb(0x111111))
             .p_2()
