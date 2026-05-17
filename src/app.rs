@@ -4,6 +4,7 @@ use gpui::{
     Styled, Window, actions, div,
 };
 use gpui_component::ActiveTheme;
+use gpui_component::Root as ComponentRoot;
 use gpui_component::dock::DockPlacement;
 use swrm::app_state::AppState;
 
@@ -137,5 +138,8 @@ impl Render for Root {
             })
             .size_full()
             .child(self.layout.dock.clone())
+            .children(ComponentRoot::render_sheet_layer(window, cx))
+            .children(ComponentRoot::render_dialog_layer(window, cx))
+            .children(ComponentRoot::render_notification_layer(window, cx))
     }
 }

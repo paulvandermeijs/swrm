@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use std::path::{Path, PathBuf};
 
 pub fn validate_repo(path: &Path) -> Result<gix::Repository> {
@@ -15,9 +15,15 @@ pub fn current_branch(repo: &gix::Repository) -> Option<String> {
 /// Returns the workdir of the main repository for the given (possibly worktree)
 /// repository — i.e. the parent of `common_dir`. Workspaces that share a
 /// project_dir are worktrees of the same repo.
+///
+/// `common_dir` is canonicalized first because for a linked worktree gix
+/// returns it unresolved as `<main>/.git/worktrees/<name>/../..`; taking the
+/// parent of that raw path yields `<main>/.git/worktrees/<name>/..` which
+/// resolves to `<main>/.git/worktrees` — not the project root we want.
 pub fn project_dir(repo: &gix::Repository) -> PathBuf {
     let common = repo.common_dir();
-    common.parent().unwrap_or(common).to_path_buf()
+    let canonical = std::fs::canonicalize(common).unwrap_or_else(|_| common.to_path_buf());
+    canonical.parent().unwrap_or(&canonical).to_path_buf()
 }
 
 pub fn list_worktrees(repo: &gix::Repository) -> Result<Vec<PathBuf>> {
@@ -37,17 +43,36 @@ pub fn list_worktrees(repo: &gix::Repository) -> Result<Vec<PathBuf>> {
     Ok(out)
 }
 
-pub fn create_worktree(repo: &gix::Repository, branch: &str, target_dir: &Path) -> Result<PathBuf> {
-    let workdir = repo.workdir().context("bare repo not supported")?;
-    let status = std::process::Command::new("git")
+#[must_use]
+pub fn random_name() -> String {
+    petname::petname(2, "-").expect("petname wordlist is non-empty")
+}
+
+/// Create a new worktree with branch `name` under `<project>/.worktrees/<name>`.
+/// Idempotent: if the target already exists, returns its path.
+pub fn ensure_worktree(repo: &gix::Repository, name: &str) -> Result<PathBuf> {
+    let project = project_dir(repo);
+    let target = project.join(".worktrees").join(name);
+    if target.is_dir() {
+        return Ok(target);
+    }
+    let parent = target.parent().expect(".worktrees has a parent");
+    std::fs::create_dir_all(parent)
+        .with_context(|| format!("could not create {}", parent.display()))?;
+    let output = std::process::Command::new("git")
         .arg("-C")
-        .arg(workdir)
-        .arg("worktree")
-        .arg("add")
-        .arg(target_dir)
-        .arg(branch)
-        .status()
-        .context("spawn `git worktree add`")?;
-    anyhow::ensure!(status.success(), "git worktree add failed");
-    Ok(target_dir.to_path_buf())
+        .arg(&project)
+        .args(["worktree", "add", "-b", name])
+        .arg(&target)
+        .output()
+        .context("failed to spawn `git worktree add`")?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!(
+            "git worktree add failed (exit status {}): {}",
+            output.status,
+            stderr.trim()
+        );
+    }
+    Ok(target)
 }

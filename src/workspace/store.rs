@@ -1,4 +1,4 @@
-use super::{Workspace, persistence};
+use super::{Workspace, persistence, worktree};
 use gpui::{Context, EventEmitter};
 use std::path::PathBuf;
 
@@ -13,11 +13,26 @@ pub struct WorkspaceStore {
 
 impl WorkspaceStore {
     pub fn load(_cx: &mut Context<Self>) -> Self {
-        let workspaces = persistence::load().unwrap_or_else(|err| {
+        let mut workspaces = persistence::load().unwrap_or_else(|err| {
             tracing::warn!(?err, "failed to load workspaces, starting empty");
             Vec::new()
         });
-        Self { workspaces }
+        let mut dirty = false;
+        for ws in &mut workspaces {
+            let Ok(repo) = worktree::validate_repo(&ws.path) else {
+                continue;
+            };
+            let project = worktree::project_dir(&repo);
+            if ws.project.as_deref() != Some(project.as_path()) {
+                ws.project = Some(project);
+                dirty = true;
+            }
+        }
+        let store = Self { workspaces };
+        if dirty {
+            store.persist();
+        }
+        store
     }
 
     pub fn add(&mut self, ws: Workspace, cx: &mut Context<Self>) {

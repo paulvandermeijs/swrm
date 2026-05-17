@@ -27,4 +27,6 @@ impl Workspace {
 }
 
 pub use store::{WorkspaceEvent, WorkspaceStore};
-pub use worktree::{create_worktree, current_branch, list_worktrees, project_dir, validate_repo};
+pub use worktree::{
+    current_branch, ensure_worktree, list_worktrees, project_dir, random_name, validate_repo,
+};
