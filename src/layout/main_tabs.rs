@@ -126,23 +126,29 @@ impl Render for TerminalTab {
             .size_full()
             .bg(gpui::rgb(0x111111))
             .p_2()
-            .relative()
-            .child(render_snapshot(&snap))
             .child(
-                gpui::canvas(
-                    move |bounds, _window, cx| {
-                        let cols =
-                            ((bounds.size.width.as_f32() / cell_width).floor() as u16).max(2);
-                        let rows =
-                            ((bounds.size.height.as_f32() / line_height).floor() as u16).max(1);
-                        let _ = entity.update(cx, |this, _cx| {
-                            let _ = this.terminal.resize(cols, rows);
-                        });
-                    },
-                    |_, _, _, _| {},
-                )
-                .absolute()
-                .inset_0(),
+                div()
+                    .size_full()
+                    .relative()
+                    .child(render_snapshot(&snap))
+                    .child(
+                        gpui::canvas(
+                            move |bounds, _window, cx| {
+                                let cols = ((bounds.size.width.as_f32() / cell_width).floor()
+                                    as u16)
+                                    .max(2);
+                                let rows = ((bounds.size.height.as_f32() / line_height).floor()
+                                    as u16)
+                                    .max(1);
+                                let _ = entity.update(cx, |this, _cx| {
+                                    let _ = this.terminal.resize(cols, rows);
+                                });
+                            },
+                            |_, _, _, _| {},
+                        )
+                        .absolute()
+                        .inset_0(),
+                    ),
             )
     }
 }
