@@ -6,15 +6,23 @@ use gpui::{
 };
 use gpui_component::button::{Button, ButtonVariants};
 use gpui_component::dock::{Panel, PanelEvent};
+use gpui_component::menu::DropdownMenu as _;
 use gpui_component::tab::{Tab, TabBar};
 use gpui_component::{IconName, Sizable};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use swrm::app_state::{AppEvent, AppState};
+use swrm::settings::Agent;
 use swrm::terminal::{
     Terminal, input,
     render::{CELL_FONT_SIZE_PX, CELL_LINE_HEIGHT_PX, render_snapshot},
 };
+
+#[derive(Clone)]
+pub enum TabSpec {
+    Shell,
+    Agent(Agent),
+}
 
 pub struct TerminalTab {
     pub label: String,
@@ -24,8 +32,16 @@ pub struct TerminalTab {
 }
 
 impl TerminalTab {
-    pub fn new(label: String, cwd: PathBuf, cx: &mut Context<Self>) -> anyhow::Result<Self> {
-        let mut terminal = Terminal::spawn(&cwd, 80, 24)?;
+    pub fn new(
+        label: String,
+        cwd: PathBuf,
+        spec: &TabSpec,
+        cx: &mut Context<Self>,
+    ) -> anyhow::Result<Self> {
+        let mut terminal = match spec {
+            TabSpec::Shell => Terminal::spawn(&cwd, 80, 24)?,
+            TabSpec::Agent(agent) => Terminal::spawn_command(&cwd, &agent.command, 80, 24)?,
+        };
         let events = terminal
             .take_events()
             .expect("Terminal::spawn populates the event channel");
@@ -222,19 +238,47 @@ impl MainTabsPanel {
         {
             return;
         }
-        let tab = cx.new(|cx| TerminalTab::new("terminal 1".into(), cwd.clone(), cx).unwrap());
-        let entry = self.by_workspace.entry(cwd).or_default();
-        entry.tabs.push(tab);
-        entry.active_index = 0;
+        let (spec, base) = match self
+            .state
+            .read(cx)
+            .settings
+            .read(cx)
+            .agents()
+            .first()
+            .cloned()
+        {
+            Some(agent) => {
+                let base = agent.name.clone();
+                (TabSpec::Agent(agent), base)
+            }
+            None => (TabSpec::Shell, "terminal".to_string()),
+        };
+        self.spawn_tab(&cwd, spec, &base, cx);
     }
 
-    fn new_tab(&mut self, cx: &mut Context<Self>) {
+    fn new_tab_with(&mut self, spec: TabSpec, cx: &mut Context<Self>) {
         let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
             return;
         };
+        let base = match &spec {
+            TabSpec::Shell => "terminal".to_string(),
+            TabSpec::Agent(agent) => agent.name.clone(),
+        };
+        self.spawn_tab(&cwd, spec, &base, cx);
+    }
+
+    fn spawn_tab(&mut self, cwd: &PathBuf, spec: TabSpec, base: &str, cx: &mut Context<Self>) {
         let entry = self.by_workspace.entry(cwd.clone()).or_default();
-        let label = format!("terminal {}", entry.tabs.len() + 1);
-        let tab = cx.new(|cx| TerminalTab::new(label, cwd, cx).unwrap());
+        let existing: Vec<&str> = entry
+            .tabs
+            .iter()
+            .map(|t| t.read(cx).label.as_str())
+            .collect();
+        let label = swrm::tab_labels::unique_label(&existing, base);
+        let cwd_clone = cwd.clone();
+        // Mirrors the existing `.unwrap()` in the file: tab-spawn failure is
+        // a programming error (PTY config), not a runtime expectation.
+        let tab = cx.new(|cx| TerminalTab::new(label, cwd_clone, &spec, cx).unwrap());
         entry.tabs.push(tab);
         entry.active_index = entry.tabs.len() - 1;
         cx.notify();
@@ -282,7 +326,17 @@ impl MainTabsPanel {
     }
 
     pub fn cmd_new_tab(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        self.new_tab(cx);
+        let spec = self
+            .state
+            .read(cx)
+            .settings
+            .read(cx)
+            .agents()
+            .first()
+            .cloned()
+            .map(TabSpec::Agent)
+            .unwrap_or(TabSpec::Shell);
+        self.new_tab_with(spec, cx);
     }
 
     pub fn cmd_close_tab(&mut self, cx: &mut Context<Self>) {
@@ -332,12 +386,43 @@ impl Render for MainTabsPanel {
         }
 
         if has_workspace {
+            let state = self.state.clone();
+            let weak = cx.entity().downgrade();
             bar = bar.suffix(
                 Button::new("new-tab")
                     .ghost()
                     .small()
                     .icon(IconName::Plus)
-                    .on_click(cx.listener(|this, _, _, cx| this.new_tab(cx))),
+                    .dropdown_menu(move |menu, _window, cx| {
+                        let agents = state.read(cx).settings.read(cx).agents().to_vec();
+                        let mut menu = menu.min_w(gpui::px(180.));
+                        for agent in &agents {
+                            let agent = agent.clone();
+                            let weak = weak.clone();
+                            menu = menu.item(
+                                gpui_component::menu::PopupMenuItem::new(agent.name.clone())
+                                    .on_click(move |_, _, cx| {
+                                        let agent = agent.clone();
+                                        let _ = weak.update(cx, |this, cx| {
+                                            this.new_tab_with(TabSpec::Agent(agent), cx);
+                                        });
+                                    }),
+                            );
+                        }
+                        if !agents.is_empty() {
+                            menu = menu.separator();
+                        }
+                        let weak = weak.clone();
+                        menu.item(
+                            gpui_component::menu::PopupMenuItem::new("Open terminal").on_click(
+                                move |_, _, cx| {
+                                    let _ = weak.update(cx, |this, cx| {
+                                        this.new_tab_with(TabSpec::Shell, cx);
+                                    });
+                                },
+                            ),
+                        )
+                    }),
             );
         }
 
