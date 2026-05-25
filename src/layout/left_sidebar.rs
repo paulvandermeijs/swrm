@@ -1,3 +1,4 @@
+use gpui::prelude::FluentBuilder;
 use gpui::{
     App, AppContext, ClickEvent, Context, Entity, FocusHandle, Focusable, InteractiveElement,
     IntoElement, ParentElement, PathPromptOptions, Render, SharedString, Styled, Subscription,
@@ -20,6 +21,7 @@ pub struct LeftSidebarPanel {
     focus_handle: FocusHandle,
     _state_sub: Subscription,
     _store_sub: Subscription,
+    _status_sub: Subscription,
 }
 
 impl LeftSidebarPanel {
@@ -43,12 +45,21 @@ impl LeftSidebarPanel {
             });
             cx.notify();
         });
+        let status_store = state.read(cx).agent_status.clone();
+        let status_sub = cx.observe(&status_store, |this: &mut Self, _, cx| {
+            this.list.update(cx, |list, cx| {
+                cx.notify();
+                list.delegate_mut().rebuild(cx);
+            });
+            cx.notify();
+        });
         Self {
             state,
             list: list_state,
             focus_handle: cx.focus_handle(),
             _state_sub: state_sub,
             _store_sub: store_sub,
+            _status_sub: status_sub,
         }
     }
 }
@@ -178,14 +189,24 @@ impl ListDelegate for WorkspacesDelegate {
         let row_id = ix.section * 10_000 + ix.row;
         let menu_state = state.clone();
         let menu_path = path.clone();
+        let menu_label = menu_label.clone();
+        let status = self
+            .state
+            .read(cx)
+            .agent_status
+            .read(cx)
+            .status_for_workspace(&ws.path);
         Some(
             ListItem::new(("workspace", row_id))
                 .selected(is_active)
                 .child(
-                    div()
+                    h_flex()
                         .id(("workspace-content", row_id))
                         .w_full()
-                        .child(ws.label.clone())
+                        .items_center()
+                        .gap_2()
+                        .when_some(status, |this, status| this.child(status_dot(status)))
+                        .child(div().flex_1().child(ws.label.clone()))
                         .context_menu(move |menu, _window, _cx| {
                             let state = menu_state.clone();
                             let path = menu_path.clone();
@@ -412,4 +433,24 @@ fn remove_from_store<C: AppContext>(path: &Path, state: &Entity<AppState>, cx: &
             state.set_active_workspace(None, cx);
         }
     });
+}
+
+fn status_dot(status: swrm::agent_status::AgentStatus) -> impl IntoElement {
+    use swrm::agent_status::AgentStatus;
+    let color: u32 = match status {
+        // Amber (needs attention), green (just finished), blue (active),
+        // gray (alive but quiet). Picked to be readable on the dark theme;
+        // the theme doesn't expose semantically named colors we can map to,
+        // so values are inline.
+        AgentStatus::Notify => 0xFFB020,
+        AgentStatus::Done => 0x46A758,
+        AgentStatus::Working => 0x3E63DD,
+        AgentStatus::Idle => 0x7B7B7B,
+    };
+    div()
+        .w(gpui::px(8.))
+        .h(gpui::px(8.))
+        .rounded_full()
+        .bg(gpui::rgb(color))
+        .flex_none()
 }
