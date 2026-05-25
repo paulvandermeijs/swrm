@@ -10,7 +10,7 @@ use gpui_component::menu::DropdownMenu as _;
 use gpui_component::tab::{Tab, TabBar};
 use gpui_component::{IconName, Sizable};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use swrm::app_state::{AppEvent, AppState};
 use swrm::settings::Agent;
 use swrm::terminal::{
@@ -22,6 +22,16 @@ use swrm::terminal::{
 pub enum TabSpec {
     Shell,
     Agent(Agent),
+}
+
+impl TabSpec {
+    /// Base name used to derive a unique tab label.
+    fn base_label(&self) -> String {
+        match self {
+            TabSpec::Shell => "terminal".into(),
+            TabSpec::Agent(agent) => agent.name.clone(),
+        }
+    }
 }
 
 pub struct TerminalTab {
@@ -227,55 +237,50 @@ impl MainTabsPanel {
     }
 
     fn ensure_tab_for_active(&mut self, cx: &mut Context<Self>) {
-        let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
-            return;
-        };
-        if self
-            .by_workspace
-            .get(&cwd)
-            .map(|w| !w.tabs.is_empty())
-            .unwrap_or(false)
-        {
-            return;
-        }
-        let (spec, base) = match self
+        let has_tabs = self
             .state
             .read(cx)
-            .settings
-            .read(cx)
-            .agents()
-            .first()
-            .cloned()
-        {
-            Some(agent) => {
-                let base = agent.name.clone();
-                (TabSpec::Agent(agent), base)
-            }
-            None => (TabSpec::Shell, "terminal".to_string()),
-        };
-        self.spawn_tab(&cwd, spec, &base, cx);
+            .active_workspace
+            .as_ref()
+            .and_then(|cwd| self.by_workspace.get(cwd))
+            .map(|w| !w.tabs.is_empty())
+            .unwrap_or(false);
+        if has_tabs {
+            return;
+        }
+        let spec = self.default_spec(cx);
+        self.new_tab_with(spec, cx);
     }
 
     fn new_tab_with(&mut self, spec: TabSpec, cx: &mut Context<Self>) {
         let Some(cwd) = self.state.read(cx).active_workspace.clone() else {
             return;
         };
-        let base = match &spec {
-            TabSpec::Shell => "terminal".to_string(),
-            TabSpec::Agent(agent) => agent.name.clone(),
-        };
+        let base = TabSpec::base_label(&spec);
         self.spawn_tab(&cwd, spec, &base, cx);
     }
 
-    fn spawn_tab(&mut self, cwd: &PathBuf, spec: TabSpec, base: &str, cx: &mut Context<Self>) {
-        let entry = self.by_workspace.entry(cwd.clone()).or_default();
+    fn default_spec(&self, cx: &Context<Self>) -> TabSpec {
+        self.state
+            .read(cx)
+            .settings
+            .read(cx)
+            .agents()
+            .first()
+            .cloned()
+            .map(TabSpec::Agent)
+            .unwrap_or(TabSpec::Shell)
+    }
+
+    fn spawn_tab(&mut self, cwd: &Path, spec: TabSpec, base: &str, cx: &mut Context<Self>) {
+        let entry = self.by_workspace.entry(cwd.to_path_buf()).or_default();
         let existing: Vec<&str> = entry
             .tabs
             .iter()
             .map(|t| t.read(cx).label.as_str())
             .collect();
         let label = swrm::tab_labels::unique_label(&existing, base);
-        let cwd_clone = cwd.clone();
+        let cwd_clone = cwd.to_path_buf();
         // Mirrors the existing `.unwrap()` in the file: tab-spawn failure is
         // a programming error (PTY config), not a runtime expectation.
         let tab = cx.new(|cx| TerminalTab::new(label, cwd_clone, &spec, cx).unwrap());
@@ -326,16 +331,7 @@ impl MainTabsPanel {
     }
 
     pub fn cmd_new_tab(&mut self, _window: &mut Window, cx: &mut Context<Self>) {
-        let spec = self
-            .state
-            .read(cx)
-            .settings
-            .read(cx)
-            .agents()
-            .first()
-            .cloned()
-            .map(TabSpec::Agent)
-            .unwrap_or(TabSpec::Shell);
+        let spec = self.default_spec(cx);
         self.new_tab_with(spec, cx);
     }
 
@@ -412,6 +408,9 @@ impl Render for MainTabsPanel {
                         if !agents.is_empty() {
                             menu = menu.separator();
                         }
+                        // Clone `weak` for the inner move closure: the outer
+                        // dropdown builder is `Fn`, so we can't move `weak`
+                        // straight out of its captures.
                         let weak = weak.clone();
                         menu.item(
                             gpui_component::menu::PopupMenuItem::new("Open terminal").on_click(
