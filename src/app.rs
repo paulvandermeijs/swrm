@@ -144,22 +144,30 @@ impl Render for Root {
                     tabs.update(cx, |t, cx| t.cmd_select_tab(8, cx));
                 }
             })
-            .on_action(|_: &OpenSettings, window: &mut Window, cx: &mut App| {
-                gpui_component::Root::update(window, cx, |root, window, cx| {
-                    root.open_dialog(
-                        |dialog, _window, _cx| {
-                            dialog
-                                .title("Settings")
-                                .content(|content, _, _| content)
-                                .w(gpui::px(800.))
-                                .close_button(true)
-                                .overlay_closable(true)
-                                .keyboard(true)
-                        },
-                        window,
-                        cx,
-                    );
-                });
+            .on_action({
+                let state = self.state.clone();
+                move |_: &OpenSettings, window: &mut Window, cx: &mut App| {
+                    let state = state.clone();
+                    let view = cx.new(|cx| {
+                        crate::layout::settings_view::SettingsView::new(state, window, cx)
+                    });
+                    gpui_component::Root::update(window, cx, |root, window, cx| {
+                        root.open_dialog(
+                            move |dialog, _window, _cx| {
+                                let view = view.clone();
+                                dialog
+                                    .title("Settings")
+                                    .content(move |content, _, _| content.child(view.clone()))
+                                    .w(gpui::px(800.))
+                                    .close_button(true)
+                                    .overlay_closable(true)
+                                    .keyboard(true)
+                            },
+                            window,
+                            cx,
+                        );
+                    });
+                }
             })
             .on_action(|_: &ShowAbout, _window: &mut Window, _cx: &mut App| {
                 tracing::info!("swrm v{}", env!("CARGO_PKG_VERSION"));

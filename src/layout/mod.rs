@@ -1,6 +1,7 @@
 pub mod left_sidebar;
 pub mod main_tabs;
 pub mod right_sidebar;
+pub mod settings_view;
 
 pub use left_sidebar::LeftSidebarPanel;
 pub use main_tabs::MainTabsPanel;
