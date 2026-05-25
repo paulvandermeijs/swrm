@@ -8,6 +8,11 @@ use std::net::{TcpListener, TcpStream};
 pub struct HookEvent {
     pub tab_id: String,
     pub event: String,
+    /// UTF-8-decoded request body (the JSON Claude piped via stdin),
+    /// truncated to the server's read buffer. `None` when the body is
+    /// empty, the read returned no body bytes, or the bytes aren't
+    /// valid UTF-8.
+    pub body: Option<String>,
 }
 
 /// Bind a TCP listener on `127.0.0.1:0` (kernel-assigned port), spawn a
@@ -61,16 +66,21 @@ fn run_accept_loop(listener: TcpListener, tx: UnboundedSender<HookEvent>) {
 }
 
 fn handle_one(mut stream: TcpStream, tx: &UnboundedSender<HookEvent>) -> Result<()> {
-    // We only need the request line. Cap at 1 KiB to bound memory.
-    let mut buf = [0u8; 1024];
+    // 16 KiB covers Claude's PreToolUse payloads (bash commands, file
+    // paths, etc.) for the loopback case. A single `read` is sufficient
+    // because curl writes the whole request in one go on localhost.
+    let mut buf = [0u8; 16 * 1024];
     let n = stream.read(&mut buf).context("read hook request")?;
     let req = &buf[..n];
+
+    // Locate the request-line / body boundary.
     let line_end = req
         .iter()
         .position(|&b| b == b'\r' || b == b'\n')
         .unwrap_or(req.len());
     let line = std::str::from_utf8(&req[..line_end]).unwrap_or("");
-    // "POST /event/<tab>/<event> HTTP/1.1"
+    let body = extract_body(req);
+
     let mut parts = line.split(' ');
     let method = parts.next().unwrap_or("");
     let path = parts.next().unwrap_or("");
@@ -79,11 +89,20 @@ fn handle_one(mut stream: TcpStream, tx: &UnboundedSender<HookEvent>) -> Result<
             let _ = tx.unbounded_send(HookEvent {
                 tab_id: tab_id.to_string(),
                 event: event.to_string(),
+                body,
             });
         }
     }
-    // Reply 204 unconditionally — curl exits 0 whether we recognised the
-    // request or not, which is fine because hook scripts ignore the response.
     let _ = stream.write_all(b"HTTP/1.1 204 No Content\r\nContent-Length: 0\r\n\r\n");
     Ok(())
+}
+
+fn extract_body(req: &[u8]) -> Option<String> {
+    // Find the end of the HTTP headers: \r\n\r\n.
+    let boundary = req.windows(4).position(|w| w == b"\r\n\r\n")?;
+    let bytes = &req[boundary + 4..];
+    if bytes.is_empty() {
+        return None;
+    }
+    std::str::from_utf8(bytes).ok().map(|s| s.to_string())
 }

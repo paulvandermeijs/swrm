@@ -144,13 +144,14 @@ fn server_receives_post_and_dispatches_hook_event() {
 
     let (port, mut rx) = start_server().expect("start server");
 
-    // Open the TCP socket directly so the test doesn't depend on curl.
     let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
-    stream
-        .write_all(
-            b"POST /event/tab-xyz/notify HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
-        )
-        .unwrap();
+    let body = r#"{"hook_event_name":"PreToolUse"}"#;
+    let request = format!(
+        "POST /event/tab-xyz/notify HTTP/1.1\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n{}",
+        body.len(),
+        body,
+    );
+    stream.write_all(request.as_bytes()).unwrap();
     drop(stream);
 
     // Pump the futures channel until we get our event or time out.
@@ -170,6 +171,39 @@ fn server_receives_post_and_dispatches_hook_event() {
     };
     assert_eq!(event.tab_id, "tab-xyz");
     assert_eq!(event.event, "notify");
+    assert_eq!(event.body.as_deref(), Some(body));
+}
+
+#[test]
+fn server_handles_post_with_no_body() {
+    use futures::StreamExt;
+    use std::io::Write;
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let (port, mut rx) = start_server().expect("start server");
+
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    stream
+        .write_all(b"POST /event/tab-abc/idle HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n")
+        .unwrap();
+    drop(stream);
+
+    let runtime = futures::executor::block_on(async {
+        futures::future::select(
+            Box::pin(rx.next()),
+            Box::pin(async {
+                futures_timer::Delay::new(Duration::from_secs(2)).await;
+                Option::<HookEvent>::None
+            }),
+        )
+        .await
+    });
+    let event = match runtime {
+        futures::future::Either::Left((Some(e), _)) => e,
+        _ => panic!("did not receive hook event"),
+    };
+    assert_eq!(event.body, None);
 }
 
 #[test]
