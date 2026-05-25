@@ -53,8 +53,8 @@ fn main() -> Result<()> {
                 gpui::KeyBinding::new("cmd-9", app::SelectTab9, Some("Root")),
                 gpui::KeyBinding::new("tab", app::SendTerminalTab, Some("Terminal")),
                 gpui::KeyBinding::new("shift-tab", app::SendTerminalShiftTab, Some("Terminal")),
-                gpui::KeyBinding::new("cmd-,", app::OpenSettings, Some("Root")),
-                gpui::KeyBinding::new("cmd-q", app::Quit, Some("Root")),
+                gpui::KeyBinding::new("cmd-,", app::OpenSettings, None),
+                gpui::KeyBinding::new("cmd-q", app::Quit, None),
             ]);
             cx.set_menus(vec![
                 gpui::Menu::new("swrm").items([
