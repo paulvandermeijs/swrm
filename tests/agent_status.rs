@@ -1,4 +1,7 @@
-use swrm::agent_status::{AgentStatus, build_claude_settings_json, substitute_placeholder};
+use swrm::agent_status::server::parse_event_path;
+use swrm::agent_status::{
+    AgentStatus, HookEvent, build_claude_settings_json, start_server, substitute_placeholder,
+};
 
 #[test]
 fn agent_status_priority_orders_attention_first() {
@@ -88,4 +91,76 @@ fn substitute_placeholder_leaves_command_alone_when_absent() {
 fn substitute_placeholder_handles_multiple_occurrences() {
     let out = substitute_placeholder("a $CLAUDE_SETTINGS b ${CLAUDE_SETTINGS} c", "/p");
     assert_eq!(out, "a /p b /p c");
+}
+
+#[test]
+fn parse_event_path_extracts_tab_and_event() {
+    assert_eq!(
+        parse_event_path("/event/tab-abc/notify"),
+        Some(("tab-abc", "notify")),
+    );
+}
+
+#[test]
+fn parse_event_path_rejects_wrong_prefix() {
+    assert_eq!(parse_event_path("/other/x/y"), None);
+    assert_eq!(parse_event_path("event/x/y"), None);
+}
+
+#[test]
+fn parse_event_path_rejects_missing_event_segment() {
+    assert_eq!(parse_event_path("/event/tab-abc"), None);
+    assert_eq!(parse_event_path("/event/tab-abc/"), None);
+}
+
+#[test]
+fn parse_event_path_rejects_extra_segments() {
+    // Three segments after /event/ would let a hook write to a nested path
+    // we don't recognise — reject explicitly.
+    assert_eq!(parse_event_path("/event/tab-abc/notify/extra"), None);
+}
+
+#[test]
+fn parse_event_path_strips_query_string() {
+    assert_eq!(
+        parse_event_path("/event/tab-abc/notify?foo=bar"),
+        Some(("tab-abc", "notify")),
+    );
+}
+
+#[test]
+fn server_receives_post_and_dispatches_hook_event() {
+    use futures::StreamExt;
+    use std::io::Write;
+    use std::net::TcpStream;
+    use std::time::Duration;
+
+    let (port, mut rx) = start_server().expect("start server");
+
+    // Open the TCP socket directly so the test doesn't depend on curl.
+    let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
+    stream
+        .write_all(
+            b"POST /event/tab-xyz/notify HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
+        )
+        .unwrap();
+    drop(stream);
+
+    // Pump the futures channel until we get our event or time out.
+    let runtime = futures::executor::block_on(async {
+        futures::future::select(
+            Box::pin(rx.next()),
+            Box::pin(async {
+                futures_timer::Delay::new(Duration::from_secs(2)).await;
+                Option::<HookEvent>::None
+            }),
+        )
+        .await
+    });
+    let event = match runtime {
+        futures::future::Either::Left((Some(e), _)) => e,
+        _ => panic!("did not receive hook event"),
+    };
+    assert_eq!(event.tab_id, "tab-xyz");
+    assert_eq!(event.event, "notify");
 }
