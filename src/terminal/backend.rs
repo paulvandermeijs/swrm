@@ -68,6 +68,7 @@ impl Backend {
         tty_opts.shell = Some(tty::Shell::new(shell, vec![]));
         tty_opts.working_directory = Some(cwd.to_path_buf());
         tty_opts.drain_on_exit = true;
+        tty_opts.env = child_env();
 
         let pty = tty::new(&tty_opts, size.into(), 0).context("open pty + fork shell")?;
 
@@ -250,4 +251,19 @@ fn resolve_color(c: AnsiColor) -> Rgb {
         AnsiColor::Spec(rgb) => rgb,
         AnsiColor::Indexed(i) => ANSI_256[i as usize],
     }
+}
+
+/// Environment variables forced onto the child shell. We override `TERM` so the
+/// shell uses OSC title sequences (which alacritty's vte parser handles) rather
+/// than the `screen`/`tmux` `ESC k … ESC \` form (which it doesn't — the `k`
+/// terminates the escape, dropping the parser back to ground and printing the
+/// payload as literal text). Without this, launching swrm from a tmux session
+/// inherits `TERM=tmux-256color`, oh-my-zsh's preexec hook sets the tab title
+/// with `\ek<cmd>\e\\`, and the command name leaks onto the next line right
+/// before its output (e.g. `lsCargo.lock` instead of `Cargo.lock`).
+fn child_env() -> std::collections::HashMap<String, String> {
+    let mut env = std::collections::HashMap::new();
+    env.insert("TERM".into(), "xterm-256color".into());
+    env.insert("COLORTERM".into(), "truecolor".into());
+    env
 }
