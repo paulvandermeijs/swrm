@@ -1,4 +1,6 @@
+use std::path::PathBuf;
 use swrm::agent_status::server::parse_event_path;
+use swrm::agent_status::store::aggregate_status;
 use swrm::agent_status::{
     AgentStatus, HookEvent, build_claude_settings_json, start_server, substitute_placeholder,
 };
@@ -163,4 +165,30 @@ fn server_receives_post_and_dispatches_hook_event() {
     };
     assert_eq!(event.tab_id, "tab-xyz");
     assert_eq!(event.event, "notify");
+}
+
+#[test]
+fn aggregate_status_returns_none_when_empty() {
+    let entries: Vec<(PathBuf, AgentStatus)> = vec![];
+    let target = PathBuf::from("/ws/a");
+    assert_eq!(aggregate_status(&entries, &target), None);
+}
+
+#[test]
+fn aggregate_status_picks_highest_priority_for_workspace() {
+    let entries = vec![
+        (PathBuf::from("/ws/a"), AgentStatus::Idle),
+        (PathBuf::from("/ws/a"), AgentStatus::Notify),
+        (PathBuf::from("/ws/a"), AgentStatus::Working),
+        (PathBuf::from("/ws/b"), AgentStatus::Done),
+    ];
+    assert_eq!(
+        aggregate_status(&entries, &PathBuf::from("/ws/a")),
+        Some(AgentStatus::Notify),
+    );
+    assert_eq!(
+        aggregate_status(&entries, &PathBuf::from("/ws/b")),
+        Some(AgentStatus::Done),
+    );
+    assert_eq!(aggregate_status(&entries, &PathBuf::from("/ws/c")), None,);
 }
