@@ -34,14 +34,21 @@ pub fn build_claude_settings_json(base_url: &str, tab_id: &str) -> String {
     serde_json::to_string_pretty(&value).expect("serde_json::Value always serializes")
 }
 
+/// Returns true iff `substitute_placeholder` would change `command` —
+/// i.e. the command contains `${CLAUDE_SETTINGS}` or a word-boundary
+/// `$CLAUDE_SETTINGS` occurrence (not part of a longer identifier like
+/// `$CLAUDE_SETTINGS_DIR`).
+pub fn has_placeholder(command: &str) -> bool {
+    command.contains("${CLAUDE_SETTINGS}") || has_bare_placeholder(command)
+}
+
 /// Replace every occurrence of `$CLAUDE_SETTINGS` and `${CLAUDE_SETTINGS}`
-/// in `command` with `path`. Bare and braced forms both work; the command
-/// is passed to `$SHELL -c` so we substitute on the swrm side rather than
-/// relying on the spawned shell's variable expansion.
+/// in `command` with `path`. Bare form requires a word boundary on the
+/// right (next char is non-`[A-Za-z0-9_]`, or end-of-string), so a longer
+/// variable like `$CLAUDE_SETTINGS_DIR` is left untouched.
 pub fn substitute_placeholder(command: &str, path: &str) -> String {
-    command
-        .replace("${CLAUDE_SETTINGS}", path)
-        .replace("$CLAUDE_SETTINGS", path)
+    let braced = command.replace("${CLAUDE_SETTINGS}", path);
+    replace_bare_placeholder(&braced, path)
 }
 
 /// `${TMPDIR}/swrm-<pid>/` — the per-process directory we write tab settings
@@ -62,4 +69,45 @@ pub fn write_settings_file(path: &Path, json: &str) -> Result<()> {
     }
     std::fs::write(path, json).with_context(|| format!("write settings file {path:?}"))?;
     Ok(())
+}
+
+fn has_bare_placeholder(command: &str) -> bool {
+    let needle = "$CLAUDE_SETTINGS";
+    let mut start = 0;
+    while let Some(pos) = command[start..].find(needle) {
+        let abs = start + pos;
+        let after = abs + needle.len();
+        if !next_is_word_char(command, after) {
+            return true;
+        }
+        start = after;
+    }
+    false
+}
+
+fn replace_bare_placeholder(command: &str, path: &str) -> String {
+    let needle = "$CLAUDE_SETTINGS";
+    let mut out = String::with_capacity(command.len());
+    let mut cursor = 0;
+    while let Some(pos) = command[cursor..].find(needle) {
+        let abs = cursor + pos;
+        let after = abs + needle.len();
+        out.push_str(&command[cursor..abs]);
+        if next_is_word_char(command, after) {
+            // Part of a longer identifier (e.g. $CLAUDE_SETTINGS_DIR) —
+            // keep the literal.
+            out.push_str(needle);
+        } else {
+            out.push_str(path);
+        }
+        cursor = after;
+    }
+    out.push_str(&command[cursor..]);
+    out
+}
+
+fn next_is_word_char(s: &str, byte_idx: usize) -> bool {
+    s.as_bytes()
+        .get(byte_idx)
+        .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
 }

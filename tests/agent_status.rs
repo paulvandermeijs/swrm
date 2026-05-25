@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use swrm::agent_status::server::parse_event_path;
 use swrm::agent_status::store::aggregate_status;
 use swrm::agent_status::{
-    AgentStatus, HookEvent, build_claude_settings_json, start_server, substitute_placeholder,
-    temp_settings_dir, write_settings_file,
+    AgentStatus, HookEvent, build_claude_settings_json, has_placeholder, start_server,
+    substitute_placeholder, temp_settings_dir, write_settings_file,
 };
 
 #[test]
@@ -239,4 +239,50 @@ fn write_settings_file_overwrites_existing() {
     write_settings_file(&path, "first").unwrap();
     write_settings_file(&path, "second").unwrap();
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "second");
+}
+
+#[test]
+fn substitute_placeholder_does_not_touch_longer_var_with_bare_form() {
+    // $CLAUDE_SETTINGS is a prefix of $CLAUDE_SETTINGS_DIR — must NOT be
+    // replaced when the next char is a word char.
+    let out = substitute_placeholder(
+        "claude --settings $CLAUDE_SETTINGS_DIR/base.json",
+        "/tmp/x.json",
+    );
+    assert_eq!(out, "claude --settings $CLAUDE_SETTINGS_DIR/base.json");
+}
+
+#[test]
+fn substitute_placeholder_replaces_bare_at_end_of_string() {
+    // Word-boundary check at EOS — must replace.
+    let out = substitute_placeholder("claude --settings $CLAUDE_SETTINGS", "/tmp/x.json");
+    assert_eq!(out, "claude --settings /tmp/x.json");
+}
+
+#[test]
+fn substitute_placeholder_replaces_only_real_occurrence_when_mixed() {
+    // One real, one disguised — only the real one is replaced.
+    let out = substitute_placeholder("$CLAUDE_SETTINGS and $CLAUDE_SETTINGS_FOO", "/p");
+    assert_eq!(out, "/p and $CLAUDE_SETTINGS_FOO");
+}
+
+#[test]
+fn has_placeholder_detects_bare_form() {
+    assert!(has_placeholder("claude --settings $CLAUDE_SETTINGS"));
+}
+
+#[test]
+fn has_placeholder_detects_braced_form() {
+    assert!(has_placeholder("claude --settings ${CLAUDE_SETTINGS}"));
+}
+
+#[test]
+fn has_placeholder_rejects_disguised_longer_var() {
+    assert!(!has_placeholder("claude --settings $CLAUDE_SETTINGS_DIR/x"));
+    assert!(!has_placeholder("claude --settings ${CLAUDE_SETTINGS_DIR}"));
+}
+
+#[test]
+fn has_placeholder_rejects_absent() {
+    assert!(!has_placeholder("claude"));
 }

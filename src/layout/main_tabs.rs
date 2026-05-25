@@ -294,10 +294,7 @@ impl MainTabsPanel {
         // tab so the indicator can show before the first hook fires.
         let cwd_clone = cwd.to_path_buf();
         let (spec_for_spawn, tab_id_for_register) = match &spec {
-            TabSpec::Agent(agent)
-                if agent.command.contains("$CLAUDE_SETTINGS")
-                    || agent.command.contains("${CLAUDE_SETTINGS}") =>
-            {
+            TabSpec::Agent(agent) if swrm::agent_status::has_placeholder(&agent.command) => {
                 let tab_id = next_tab_id();
                 let origin = self.state.read(cx).agent_status_origin.clone();
                 let json = swrm::agent_status::build_claude_settings_json(&origin, &tab_id);
