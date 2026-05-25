@@ -1,9 +1,9 @@
 use std::path::PathBuf;
 use swrm::agent_status::server::parse_event_path;
-use swrm::agent_status::store::aggregate_status;
 use swrm::agent_status::{
-    AgentStatus, HookEvent, build_claude_settings_json, extract_activity, has_placeholder,
-    start_server, substitute_placeholder, temp_settings_dir, write_settings_file,
+    AgentStatus, HookEvent, WorkspaceAgentInfo, aggregate_workspace_info,
+    build_claude_settings_json, extract_activity, has_placeholder, start_server,
+    substitute_placeholder, temp_settings_dir, write_settings_file,
 };
 
 #[test]
@@ -185,7 +185,9 @@ fn server_handles_post_with_no_body() {
 
     let mut stream = TcpStream::connect(("127.0.0.1", port)).unwrap();
     stream
-        .write_all(b"POST /event/tab-abc/idle HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n")
+        .write_all(
+            b"POST /event/tab-abc/idle HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\n\r\n",
+        )
         .unwrap();
     drop(stream);
 
@@ -207,40 +209,65 @@ fn server_handles_post_with_no_body() {
 }
 
 #[test]
-fn aggregate_status_returns_none_when_empty() {
-    let entries: Vec<(PathBuf, AgentStatus)> = vec![];
+fn aggregate_workspace_info_returns_none_when_empty() {
+    let entries: Vec<(PathBuf, AgentStatus, Option<String>)> = vec![];
     let target = PathBuf::from("/ws/a");
     assert_eq!(
-        aggregate_status(entries.iter().map(|(p, s)| (p.as_path(), *s)), &target),
+        aggregate_workspace_info(
+            entries
+                .iter()
+                .map(|(p, s, m)| (p.as_path(), *s, m.as_deref())),
+            &target,
+        ),
         None,
     );
 }
 
 #[test]
-fn aggregate_status_picks_highest_priority_for_workspace() {
-    let entries = vec![
-        (PathBuf::from("/ws/a"), AgentStatus::Idle),
-        (PathBuf::from("/ws/a"), AgentStatus::Notify),
-        (PathBuf::from("/ws/a"), AgentStatus::Working),
-        (PathBuf::from("/ws/b"), AgentStatus::Done),
+fn aggregate_workspace_info_picks_highest_priority_for_workspace() {
+    let entries: Vec<(PathBuf, AgentStatus, Option<String>)> = vec![
+        (PathBuf::from("/ws/a"), AgentStatus::Idle, None),
+        (
+            PathBuf::from("/ws/a"),
+            AgentStatus::Notify,
+            Some("Permission: Bash".into()),
+        ),
+        (
+            PathBuf::from("/ws/a"),
+            AgentStatus::Working,
+            Some("Reading foo".into()),
+        ),
+        (PathBuf::from("/ws/b"), AgentStatus::Done, None),
     ];
     assert_eq!(
-        aggregate_status(
-            entries.iter().map(|(p, s)| (p.as_path(), *s)),
+        aggregate_workspace_info(
+            entries
+                .iter()
+                .map(|(p, s, m)| (p.as_path(), *s, m.as_deref())),
             &PathBuf::from("/ws/a"),
         ),
-        Some(AgentStatus::Notify),
+        Some(WorkspaceAgentInfo {
+            status: AgentStatus::Notify,
+            message: Some("Permission: Bash".into()),
+        }),
     );
     assert_eq!(
-        aggregate_status(
-            entries.iter().map(|(p, s)| (p.as_path(), *s)),
+        aggregate_workspace_info(
+            entries
+                .iter()
+                .map(|(p, s, m)| (p.as_path(), *s, m.as_deref())),
             &PathBuf::from("/ws/b"),
         ),
-        Some(AgentStatus::Done),
+        Some(WorkspaceAgentInfo {
+            status: AgentStatus::Done,
+            message: None,
+        }),
     );
     assert_eq!(
-        aggregate_status(
-            entries.iter().map(|(p, s)| (p.as_path(), *s)),
+        aggregate_workspace_info(
+            entries
+                .iter()
+                .map(|(p, s, m)| (p.as_path(), *s, m.as_deref())),
             &PathBuf::from("/ws/c"),
         ),
         None,
@@ -328,25 +355,37 @@ fn has_placeholder_rejects_absent() {
 #[test]
 fn extract_activity_bash_returns_running_command() {
     let body = r#"{"tool_name":"Bash","tool_input":{"command":"cargo test"}}"#;
-    assert_eq!(extract_activity(body), Some("Running: cargo test".to_string()));
+    assert_eq!(
+        extract_activity(body),
+        Some("Running: cargo test".to_string())
+    );
 }
 
 #[test]
 fn extract_activity_read_returns_reading_path() {
     let body = r#"{"tool_name":"Read","tool_input":{"file_path":"src/foo.rs"}}"#;
-    assert_eq!(extract_activity(body), Some("Reading src/foo.rs".to_string()));
+    assert_eq!(
+        extract_activity(body),
+        Some("Reading src/foo.rs".to_string())
+    );
 }
 
 #[test]
 fn extract_activity_edit_returns_editing_path() {
     let body = r#"{"tool_name":"Edit","tool_input":{"file_path":"src/foo.rs"}}"#;
-    assert_eq!(extract_activity(body), Some("Editing src/foo.rs".to_string()));
+    assert_eq!(
+        extract_activity(body),
+        Some("Editing src/foo.rs".to_string())
+    );
 }
 
 #[test]
 fn extract_activity_unknown_tool_returns_generic_fallback() {
     let body = r#"{"tool_name":"NewTool","tool_input":{}}"#;
-    assert_eq!(extract_activity(body), Some("Running tool: NewTool".to_string()));
+    assert_eq!(
+        extract_activity(body),
+        Some("Running tool: NewTool".to_string())
+    );
 }
 
 #[test]

@@ -11,4 +11,4 @@ pub use settings_file::{
     build_claude_settings_json, has_placeholder, substitute_placeholder, temp_settings_dir,
     write_settings_file,
 };
-pub use store::{AgentStatusEvent, AgentStatusStore};
+pub use store::{AgentStatusEvent, AgentStatusStore, WorkspaceAgentInfo, aggregate_workspace_info};

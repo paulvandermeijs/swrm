@@ -52,8 +52,16 @@ impl AppState {
                     tracing::debug!(event = %evt.event, "ignoring unknown status");
                     continue;
                 };
+                let message = evt
+                    .body
+                    .as_deref()
+                    .and_then(crate::agent_status::extract_activity);
                 let _ = store_weak.update(cx, |store, cx| {
-                    store.set_status(&evt.tab_id, status, cx);
+                    if message.is_some() {
+                        store.set_status_with_message(&evt.tab_id, status, message, cx);
+                    } else {
+                        store.set_status(&evt.tab_id, status, cx);
+                    }
                 });
             }
         })
