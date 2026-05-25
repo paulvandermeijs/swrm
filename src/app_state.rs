@@ -1,3 +1,4 @@
+use crate::settings::SettingsStore;
 use crate::workspace::WorkspaceStore;
 use gpui::{AppContext, Context, Entity, EventEmitter};
 use std::path::PathBuf;
@@ -10,6 +11,7 @@ pub enum AppEvent {
 
 pub struct AppState {
     pub workspaces: Entity<WorkspaceStore>,
+    pub settings: Entity<SettingsStore>,
     pub active_workspace: Option<PathBuf>,
     pub left_sidebar_visible: bool,
     pub right_sidebar_visible: bool,
@@ -18,8 +20,10 @@ pub struct AppState {
 impl AppState {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let workspaces = cx.new(|cx| WorkspaceStore::load(cx));
+        let settings = cx.new(|cx| SettingsStore::load(cx));
         Self {
             workspaces,
+            settings,
             active_workspace: None,
             left_sidebar_visible: true,
             right_sidebar_visible: true,
