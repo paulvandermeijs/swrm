@@ -176,11 +176,18 @@ impl Render for SettingsView {
                 .into_any_element()
         }));
 
+        // Explicit height: Settings uses a virtualised `list` inside the page
+        // body which needs a definite vertical bound to render its items. The
+        // dialog itself only sets width, so without this the list collapses
+        // and the agent rows / "+ Add agent" button never show up.
         div()
             .track_focus(&self.focus)
-            .size_full()
+            .w_full()
+            .h(gpui::px(500.))
             .child(Settings::new("agents-settings").pages(vec![
-                SettingPage::new("Agents").groups(vec![SettingGroup::new().items(items)]),
+                SettingPage::new("Agents")
+                    .default_open(true)
+                    .groups(vec![SettingGroup::new().items(items)]),
             ]))
     }
 }
