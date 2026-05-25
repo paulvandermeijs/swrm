@@ -648,7 +648,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let workspaces = cx.new(|cx| WorkspaceStore::load(cx));
-        let settings = cx.new(|_cx| SettingsStore::load());
+        let settings = cx.new(|cx| SettingsStore::load(cx));
         Self {
             workspaces,
             settings,

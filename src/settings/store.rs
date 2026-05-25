@@ -13,11 +13,11 @@ pub enum MoveDir {
 }
 
 pub struct SettingsStore {
-    pub settings: super::AppSettings,
+    settings: super::AppSettings,
 }
 
 impl SettingsStore {
-    pub fn load() -> Self {
+    pub fn load(_cx: &mut Context<Self>) -> Self {
         let settings = persistence::load().unwrap_or_else(|err| {
             tracing::warn!(?err, "failed to load settings, starting empty");
             super::AppSettings::default()
