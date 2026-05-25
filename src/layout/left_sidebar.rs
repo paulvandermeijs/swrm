@@ -1,4 +1,3 @@
-use gpui::prelude::FluentBuilder;
 use gpui::{
     App, AppContext, ClickEvent, Context, Entity, FocusHandle, Focusable, InteractiveElement,
     IntoElement, ParentElement, PathPromptOptions, Render, SharedString, Styled, Subscription,
@@ -205,7 +204,7 @@ impl ListDelegate for WorkspacesDelegate {
                         .w_full()
                         .items_center()
                         .gap_2()
-                        .when_some(status, |this, status| this.child(status_dot(status)))
+                        .child(status_dot(status))
                         .child(div().flex_1().child(ws.label.clone()))
                         .context_menu(move |menu, _window, _cx| {
                             let state = menu_state.clone();
@@ -435,22 +434,33 @@ fn remove_from_store<C: AppContext>(path: &Path, state: &Entity<AppState>, cx: &
     });
 }
 
-fn status_dot(status: swrm::agent_status::AgentStatus) -> impl IntoElement {
+fn status_dot(status: Option<swrm::agent_status::AgentStatus>) -> impl IntoElement {
     use swrm::agent_status::AgentStatus;
-    let color: u32 = match status {
-        // Amber (needs attention), green (just finished), blue (active),
-        // gray (alive but quiet). Picked to be readable on the dark theme;
-        // the theme doesn't expose semantically named colors we can map to,
-        // so values are inline.
-        AgentStatus::Notify => 0xFFB020,
-        AgentStatus::Done => 0x46A758,
-        AgentStatus::Working => 0x3E63DD,
-        AgentStatus::Idle => 0x7B7B7B,
-    };
-    div()
+    let base = div()
         .w(gpui::px(8.))
         .h(gpui::px(8.))
         .rounded_full()
-        .bg(gpui::rgb(color))
-        .flex_none()
+        .flex_none();
+    match status {
+        Some(s) => {
+            let color: u32 = match s {
+                // Amber (needs attention), green (just finished), blue (active),
+                // gray (alive but quiet). Picked to be readable on the dark theme;
+                // the theme doesn't expose semantically named colors we can map to,
+                // so values are inline.
+                AgentStatus::Notify => 0xFFB020,
+                AgentStatus::Done => 0x46A758,
+                AgentStatus::Working => 0x3E63DD,
+                AgentStatus::Idle => 0x7B7B7B,
+            };
+            base.bg(gpui::rgb(color)).into_any_element()
+        }
+        None => {
+            // Outlined open circle — same footprint, no fill, 1px muted border.
+            // Keeps the workspace label aligned whether or not an agent is running.
+            base.border_1()
+                .border_color(gpui::rgb(0x4A4A4A))
+                .into_any_element()
+        }
+    }
 }
