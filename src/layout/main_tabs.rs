@@ -39,6 +39,9 @@ pub struct TerminalTab {
     pub terminal: Terminal,
     pub focus: FocusHandle,
     pub exited: bool,
+    /// `Some` for agent tabs whose command had a `$CLAUDE_SETTINGS` placeholder;
+    /// `None` for plain shells and agent tabs without the placeholder.
+    pub tab_id: Option<String>,
 }
 
 impl TerminalTab {
@@ -90,6 +93,7 @@ impl TerminalTab {
             terminal,
             focus,
             exited: false,
+            tab_id: None,
         })
     }
 
@@ -283,12 +287,57 @@ impl MainTabsPanel {
             .map(|t| t.read(cx).label.as_str())
             .collect();
         let label = swrm::tab_labels::unique_label(&existing, base);
+
+        // Agent-status integration: if the agent command contains
+        // `$CLAUDE_SETTINGS` (or the braced form), generate a per-tab
+        // settings JSON, substitute the placeholder, and pre-register the
+        // tab so the indicator can show before the first hook fires.
         let cwd_clone = cwd.to_path_buf();
-        // Mirrors the existing `.unwrap()` in the file: tab-spawn failure is
-        // a programming error (PTY config), not a runtime expectation.
-        let tab = cx.new(|cx| TerminalTab::new(label, cwd_clone, &spec, cx).unwrap());
+        let (spec_for_spawn, tab_id_for_register) = match &spec {
+            TabSpec::Agent(agent)
+                if agent.command.contains("$CLAUDE_SETTINGS")
+                    || agent.command.contains("${CLAUDE_SETTINGS}") =>
+            {
+                let tab_id = next_tab_id();
+                let origin = self.state.read(cx).agent_status_origin.clone();
+                let json = swrm::agent_status::build_claude_settings_json(&origin, &tab_id);
+                let path = swrm::agent_status::temp_settings_dir().join(format!("{tab_id}.json"));
+                match swrm::agent_status::write_settings_file(&path, &json) {
+                    Ok(()) => {
+                        let path_str = path.to_string_lossy().to_string();
+                        let substituted =
+                            swrm::agent_status::substitute_placeholder(&agent.command, &path_str);
+                        let mut substituted_agent = agent.clone();
+                        substituted_agent.command = substituted;
+                        (TabSpec::Agent(substituted_agent), Some(tab_id))
+                    }
+                    Err(err) => {
+                        tracing::warn!(
+                            ?err,
+                            "writing agent settings file failed; spawning without status tracking"
+                        );
+                        (spec.clone(), None)
+                    }
+                }
+            }
+            _ => (spec.clone(), None),
+        };
+
+        let tab_id_for_struct = tab_id_for_register.clone();
+        // Mirrors the existing `.unwrap()` here: tab-spawn failure is a
+        // programming error (PTY config), not a runtime expectation.
+        let tab = cx.new(|cx| {
+            let mut t = TerminalTab::new(label, cwd_clone.clone(), &spec_for_spawn, cx).unwrap();
+            t.tab_id = tab_id_for_struct;
+            t
+        });
         entry.tabs.push(tab);
         entry.active_index = entry.tabs.len() - 1;
+
+        if let Some(tab_id) = tab_id_for_register {
+            let store = self.state.read(cx).agent_status.clone();
+            store.update(cx, |s, cx| s.register(tab_id, cwd_clone, cx));
+        }
         cx.notify();
     }
 
@@ -313,9 +362,13 @@ impl MainTabsPanel {
         if idx >= entry.tabs.len() {
             return;
         }
-        entry.tabs.remove(idx);
+        let removed = entry.tabs.remove(idx);
         if entry.active_index >= entry.tabs.len() && entry.active_index > 0 {
             entry.active_index = entry.tabs.len().saturating_sub(1);
+        }
+        if let Some(tab_id) = removed.read(cx).tab_id.clone() {
+            let store = self.state.read(cx).agent_status.clone();
+            store.update(cx, |s, cx| s.unregister(&tab_id, cx));
         }
         cx.notify();
     }
@@ -485,4 +538,14 @@ impl Panel for MainTabsPanel {
             .unwrap_or_else(|| "Terminal".to_string());
         title
     }
+}
+
+fn next_tab_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    // Per-process counter is enough: tab_id is only used to dispatch hook
+    // events back into the same swrm process, and the hook URLs include
+    // the server port (also per-process).
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("tab-{n:08x}")
 }
