@@ -462,9 +462,13 @@ fn activity_line<V>(message: Option<&str>, cx: &Context<V>) -> impl IntoElement 
 
 fn status_dot(status: Option<swrm::agent_status::AgentStatus>) -> impl IntoElement {
     use swrm::agent_status::AgentStatus;
+    // 2px top margin nudges the dot from line-box geometric center down to
+    // the text's visual center (sans-serif lowercase x-height sits below
+    // the line-box midpoint).
     let base = div()
         .w(gpui::px(8.))
         .h(gpui::px(8.))
+        .mt(gpui::px(2.))
         .rounded_full()
         .flex_none();
     match status {
