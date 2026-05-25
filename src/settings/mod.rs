@@ -1,4 +1,7 @@
 pub mod persistence;
+pub mod store;
+
+pub use store::{MoveDir, SettingsEvent, SettingsStore};
 
 use serde::{Deserialize, Serialize};
 

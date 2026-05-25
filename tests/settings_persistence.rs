@@ -1,3 +1,4 @@
+use swrm::settings::store::next_id;
 use swrm::settings::{Agent, AppSettings, persistence};
 use tempfile::tempdir;
 
@@ -52,4 +53,60 @@ fn missing_agents_key_loads_as_default() {
     std::fs::write(&path, b"{}").unwrap();
     let loaded = persistence::load_from(&path).unwrap();
     assert_eq!(loaded, AppSettings::default());
+}
+
+#[test]
+fn next_id_starts_at_one() {
+    assert_eq!(next_id(&[]), "agent-1");
+}
+
+#[test]
+fn next_id_is_max_plus_one() {
+    let agents = vec![
+        Agent {
+            id: "agent-1".into(),
+            name: String::new(),
+            command: String::new(),
+        },
+        Agent {
+            id: "agent-2".into(),
+            name: String::new(),
+            command: String::new(),
+        },
+    ];
+    assert_eq!(next_id(&agents), "agent-3");
+}
+
+#[test]
+fn next_id_does_not_reset_into_gaps() {
+    let agents = vec![
+        Agent {
+            id: "agent-1".into(),
+            name: String::new(),
+            command: String::new(),
+        },
+        Agent {
+            id: "agent-5".into(),
+            name: String::new(),
+            command: String::new(),
+        },
+    ];
+    assert_eq!(next_id(&agents), "agent-6");
+}
+
+#[test]
+fn next_id_ignores_unparseable_ids() {
+    let agents = vec![
+        Agent {
+            id: "weird".into(),
+            name: String::new(),
+            command: String::new(),
+        },
+        Agent {
+            id: "agent-2".into(),
+            name: String::new(),
+            command: String::new(),
+        },
+    ];
+    assert_eq!(next_id(&agents), "agent-3");
 }
