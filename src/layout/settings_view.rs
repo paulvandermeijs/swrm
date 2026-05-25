@@ -50,12 +50,16 @@ impl Focusable for SettingsView {
 
 impl Render for SettingsView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // Re-sync inputs on every render so newly-added agents get inputs.
+        // Sync the input map's *structure* to the current agent list — adds
+        // an InputState for any new agent, drops state for any removed one.
+        // Existing inputs are NOT re-seeded with the store's current values,
+        // so an externally-edited agent name/command won't show up here. That's
+        // fine today (the store is only edited from this view); revisit if a
+        // Reload/sync action gets added later.
         self.reconcile_inputs_with_window(window, cx);
 
         let agents = self.state.read(cx).settings.read(cx).agents().to_vec();
         let store = self.state.read(cx).settings.clone();
-        let weak = cx.entity().downgrade();
 
         let mut items: Vec<SettingItem> = Vec::with_capacity(agents.len() + 1);
         let len = agents.len();
@@ -152,23 +156,20 @@ impl Render for SettingsView {
             }));
         }
 
-        // "+ Add agent" item.
+        // "+ Add agent" item. The store emits SettingsEvent::Changed after
+        // add_agent, our subscription fires cx.notify(), and the next render
+        // calls reconcile_inputs_with_window to materialise the new row's
+        // inputs — no manual reconcile needed here.
         let store_for_add = store.clone();
-        let weak_for_add = weak.clone();
         items.push(SettingItem::render(move |_opts, _window, _cx| {
             Button::new("add-agent")
                 .primary()
                 .label("+ Add agent")
                 .on_click({
                     let store = store_for_add.clone();
-                    let weak = weak_for_add.clone();
-                    move |_, window, cx| {
+                    move |_, _window, cx| {
                         store.update(cx, |s, cx| {
                             s.add_agent(cx);
-                        });
-                        let _ = weak.update(cx, |this, cx| {
-                            this.reconcile_inputs_with_window(window, cx);
-                            cx.notify();
                         });
                     }
                 })
