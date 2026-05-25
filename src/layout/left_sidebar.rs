@@ -204,7 +204,7 @@ impl ListDelegate for WorkspacesDelegate {
                     h_flex()
                         .id(("workspace-content", row_id))
                         .w_full()
-                        .items_center()
+                        .items_start()
                         .gap_2()
                         .child(status_dot(status))
                         .child(
@@ -443,10 +443,10 @@ fn remove_from_store<C: AppContext>(path: &Path, state: &Entity<AppState>, cx: &
 }
 
 fn activity_line<V>(message: Option<&str>, cx: &Context<V>) -> impl IntoElement {
-    // Reserve a fixed height so the row's overall size is stable
-    // whether or not an activity message is present. text_xs renders
-    // ~14px tall in the bundled fonts.
-    let label = message.unwrap_or("\u{00A0}"); // NBSP keeps the line non-empty for the layout reservation.
+    // Em dash placeholder when no activity is reported — gives users a
+    // visible "nothing here right now" marker instead of an invisible
+    // NBSP, and keeps the row height stable either way.
+    let label = message.unwrap_or("—");
     div()
         .h(gpui::px(14.))
         .text_xs()
@@ -457,12 +457,21 @@ fn activity_line<V>(message: Option<&str>, cx: &Context<V>) -> impl IntoElement 
 
 fn status_dot(status: Option<swrm::agent_status::AgentStatus>) -> impl IntoElement {
     use swrm::agent_status::AgentStatus;
-    let base = div()
+
+    // The outer wrapper is one workspace-label line tall, with the dot
+    // vertically centered inside it. Combined with `items_start()` on the
+    // row's h_flex, this aligns the dot with the workspace label even
+    // when the second activity line is present.
+    //
+    // 20px matches the rendered line height of the default theme font
+    // (IBM Plex Sans at the theme's base size). If the font/size changes
+    // and the dot drifts, retune this constant.
+    let dot = div()
         .w(gpui::px(8.))
         .h(gpui::px(8.))
         .rounded_full()
         .flex_none();
-    match status {
+    let dot = match status {
         Some(s) => {
             let color: u32 = match s {
                 // Amber (needs attention), green (just finished), blue (active),
@@ -474,14 +483,18 @@ fn status_dot(status: Option<swrm::agent_status::AgentStatus>) -> impl IntoEleme
                 AgentStatus::Working => 0x3E63DD,
                 AgentStatus::Idle => 0x7B7B7B,
             };
-            base.bg(gpui::rgb(color)).into_any_element()
+            dot.bg(gpui::rgb(color))
         }
         None => {
             // Outlined open circle — same footprint, no fill, 1px muted border.
             // Keeps the workspace label aligned whether or not an agent is running.
-            base.border_1()
-                .border_color(gpui::rgb(0x4A4A4A))
-                .into_any_element()
+            dot.border_1().border_color(gpui::rgb(0x4A4A4A))
         }
-    }
+    };
+    div()
+        .h(gpui::px(20.))
+        .flex()
+        .items_center()
+        .flex_none()
+        .child(dot)
 }
