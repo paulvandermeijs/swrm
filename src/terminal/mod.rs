@@ -28,6 +28,14 @@ impl Terminal {
         })
     }
 
+    pub fn spawn_command(cwd: &Path, command: &str, cols: u16, rows: u16) -> Result<Self> {
+        let (backend, events) = Backend::spawn_command(cwd, command, cols, rows)?;
+        Ok(Self {
+            backend,
+            events: Some(events),
+        })
+    }
+
     pub fn headless(cols: u16, rows: u16) -> Self {
         let (backend, events) = Backend::headless(cols, rows);
         Self {
