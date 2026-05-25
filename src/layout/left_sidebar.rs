@@ -189,12 +189,14 @@ impl ListDelegate for WorkspacesDelegate {
         let menu_state = state.clone();
         let menu_path = path.clone();
         let menu_label = menu_label.clone();
-        let status = self
+        let info = self
             .state
             .read(cx)
             .agent_status
             .read(cx)
-            .status_for_workspace(&ws.path);
+            .workspace_info(&ws.path);
+        let status = info.as_ref().map(|i| i.status);
+        let message = info.and_then(|i| i.message);
         Some(
             ListItem::new(("workspace", row_id))
                 .selected(is_active)
@@ -205,7 +207,13 @@ impl ListDelegate for WorkspacesDelegate {
                         .items_center()
                         .gap_2()
                         .child(status_dot(status))
-                        .child(div().flex_1().child(ws.label.clone()))
+                        .child(
+                            v_flex()
+                                .flex_1()
+                                .gap_0()
+                                .child(div().child(ws.label.clone()))
+                                .child(activity_line(message.as_deref(), cx)),
+                        )
                         .context_menu(move |menu, _window, _cx| {
                             let state = menu_state.clone();
                             let path = menu_path.clone();
@@ -432,6 +440,19 @@ fn remove_from_store<C: AppContext>(path: &Path, state: &Entity<AppState>, cx: &
             state.set_active_workspace(None, cx);
         }
     });
+}
+
+fn activity_line<V>(message: Option<&str>, cx: &Context<V>) -> impl IntoElement {
+    // Reserve a fixed height so the row's overall size is stable
+    // whether or not an activity message is present. text_xs renders
+    // ~14px tall in the bundled fonts.
+    let label = message.unwrap_or("\u{00A0}"); // NBSP keeps the line non-empty for the layout reservation.
+    div()
+        .h(gpui::px(14.))
+        .text_xs()
+        .text_color(cx.theme().muted_foreground)
+        .overflow_hidden()
+        .child(label.to_string())
 }
 
 fn status_dot(status: Option<swrm::agent_status::AgentStatus>) -> impl IntoElement {
