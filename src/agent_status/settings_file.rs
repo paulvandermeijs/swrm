@@ -16,9 +16,14 @@ use std::path::{Path, PathBuf};
 pub fn build_claude_settings_json(base_url: &str, tab_id: &str) -> String {
     let url = |status: &str| format!("{base_url}/event/{tab_id}/{status}");
     let cmd = |status: &str| {
-        // --max-time 1: a slow hook must not block Claude. -s: quiet.
-        // -o /dev/null: swallow the empty body. -X POST: no body needed.
-        format!("curl -s --max-time 1 -o /dev/null -X POST {}", url(status))
+        // `--data-binary @-` forwards Claude's hook JSON (piped on stdin)
+        // straight into the POST body so swrm can extract tool activity
+        // for the sidebar's activity line. `--max-time 1` keeps a slow
+        // hook from blocking Claude. `-s -o /dev/null` quiets curl.
+        format!(
+            "curl -s --max-time 1 -o /dev/null -X POST --data-binary @- {}",
+            url(status)
+        )
     };
 
     let value = json!({

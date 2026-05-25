@@ -58,6 +58,10 @@ fn claude_settings_json_wires_all_status_hooks() {
             "{event}: expected URL {expected_url} in cmd: {cmd}",
         );
         assert!(cmd.contains("curl"), "{event}: cmd should curl: {cmd}");
+        assert!(
+            cmd.contains("--data-binary @-"),
+            "{event}: cmd should forward stdin: {cmd}",
+        );
     }
 }
 
