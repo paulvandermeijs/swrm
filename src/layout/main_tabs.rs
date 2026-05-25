@@ -393,18 +393,20 @@ impl Render for MainTabsPanel {
                     .small()
                     .icon(IconName::Plus)
                     .dropdown_menu(move |menu, _window, cx| {
-                        // Hide agents that have no name (the just-created "+ Add
-                        // agent" row before the user types anything). An agent
-                        // with a name but no command is still shown — selecting
-                        // it spawns a tab that exits immediately, which is a
-                        // visible signal that the command needs filling in.
+                        // Filter out incomplete agents. SettingsView persists
+                        // on every keystroke, so an empty name/command at this
+                        // point reflects an agent the user actually left in
+                        // that state (e.g. they hit "+ Add agent" and never
+                        // filled it in). Clicking it would spawn a tab with an
+                        // empty label or instant-exit command — neither is
+                        // good UX. Skip until both fields have content.
                         let agents: Vec<Agent> = state
                             .read(cx)
                             .settings
                             .read(cx)
                             .agents()
                             .iter()
-                            .filter(|a| !a.name.trim().is_empty())
+                            .filter(|a| !a.name.trim().is_empty() && !a.command.trim().is_empty())
                             .cloned()
                             .collect();
                         let mut menu = menu.min_w(gpui::px(180.)).scrollable(true);

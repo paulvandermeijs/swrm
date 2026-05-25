@@ -509,7 +509,7 @@ Expected: every previously-passing test still passes; one new test added.
 ```bash
 cargo fmt
 git add src/terminal/backend.rs src/terminal/mod.rs tests/agent_command_spawn.rs
-git commit -m "feat: Add Terminal::spawn_command to launch tabs via \$SHELL -c"
+git commit -m 'feat: Add Terminal::spawn_command to launch tabs via $SHELL -c'
 ```
 
 ---

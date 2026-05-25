@@ -220,15 +220,26 @@ impl SettingsView {
             command_state.update(cx, |s, cx| {
                 s.set_value(agent_command, window, cx);
             });
+            // Persist on every keystroke (`Change`) — not just on Blur or
+            // Enter. Closing the dialog (✕, Escape, click-outside) doesn't
+            // emit Blur reliably, so save-on-Blur silently dropped the last
+            // edit. Save-on-Change is unconditional and the JSON file is
+            // small enough that per-keystroke writes are imperceptible.
             let id_for_name = agent.id.clone();
             let name_sub = cx.subscribe(&name_state, move |this, _, event, cx| {
-                if matches!(event, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+                if matches!(
+                    event,
+                    InputEvent::Change | InputEvent::Blur | InputEvent::PressEnter { .. }
+                ) {
                     this.commit_agent(&id_for_name, cx);
                 }
             });
             let id_for_cmd = agent.id.clone();
             let command_sub = cx.subscribe(&command_state, move |this, _, event, cx| {
-                if matches!(event, InputEvent::Blur | InputEvent::PressEnter { .. }) {
+                if matches!(
+                    event,
+                    InputEvent::Change | InputEvent::Blur | InputEvent::PressEnter { .. }
+                ) {
                     this.commit_agent(&id_for_cmd, cx);
                 }
             });
