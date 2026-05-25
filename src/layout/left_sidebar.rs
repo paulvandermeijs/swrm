@@ -201,17 +201,22 @@ impl ListDelegate for WorkspacesDelegate {
             ListItem::new(("workspace", row_id))
                 .selected(is_active)
                 .child(
-                    h_flex()
+                    v_flex()
                         .id(("workspace-content", row_id))
                         .w_full()
-                        .items_start()
-                        .gap_2()
-                        .child(status_dot(status))
+                        .gap_0()
                         .child(
-                            v_flex()
-                                .flex_1()
-                                .gap_0()
-                                .child(div().child(ws.label.clone()))
+                            h_flex()
+                                .items_center()
+                                .gap_2()
+                                .child(status_dot(status))
+                                .child(div().flex_1().child(ws.label.clone())),
+                        )
+                        .child(
+                            // Indent the activity line so it starts under the label text,
+                            // not the dot. 8px dot + gap_2 (8px) = 16px left pad.
+                            div()
+                                .pl(gpui::px(16.))
                                 .child(activity_line(message.as_deref(), cx)),
                         )
                         .context_menu(move |menu, _window, _cx| {
@@ -457,44 +462,26 @@ fn activity_line<V>(message: Option<&str>, cx: &Context<V>) -> impl IntoElement 
 
 fn status_dot(status: Option<swrm::agent_status::AgentStatus>) -> impl IntoElement {
     use swrm::agent_status::AgentStatus;
-
-    // The outer wrapper is one workspace-label line tall, with the dot
-    // vertically centered inside it. Combined with `items_start()` on the
-    // row's h_flex, this aligns the dot with the workspace label even
-    // when the second activity line is present.
-    //
-    // 20px matches the rendered line height of the default theme font
-    // (IBM Plex Sans at the theme's base size). If the font/size changes
-    // and the dot drifts, retune this constant.
-    let dot = div()
+    let base = div()
         .w(gpui::px(8.))
         .h(gpui::px(8.))
         .rounded_full()
         .flex_none();
-    let dot = match status {
+    match status {
         Some(s) => {
             let color: u32 = match s {
-                // Amber (needs attention), green (just finished), blue (active),
-                // gray (alive but quiet). Picked to be readable on the dark theme;
-                // the theme doesn't expose semantically named colors we can map to,
-                // so values are inline.
                 AgentStatus::Notify => 0xFFB020,
                 AgentStatus::Done => 0x46A758,
                 AgentStatus::Working => 0x3E63DD,
                 AgentStatus::Idle => 0x7B7B7B,
             };
-            dot.bg(gpui::rgb(color))
+            base.bg(gpui::rgb(color)).into_any_element()
         }
         None => {
-            // Outlined open circle — same footprint, no fill, 1px muted border.
-            // Keeps the workspace label aligned whether or not an agent is running.
-            dot.border_1().border_color(gpui::rgb(0x4A4A4A))
+            // Outlined open circle — same footprint, no fill.
+            base.border_1()
+                .border_color(gpui::rgb(0x4A4A4A))
+                .into_any_element()
         }
-    };
-    div()
-        .h(gpui::px(20.))
-        .flex()
-        .items_center()
-        .flex_none()
-        .child(dot)
+    }
 }
