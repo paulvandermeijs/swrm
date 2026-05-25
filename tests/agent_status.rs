@@ -3,6 +3,7 @@ use swrm::agent_status::server::parse_event_path;
 use swrm::agent_status::store::aggregate_status;
 use swrm::agent_status::{
     AgentStatus, HookEvent, build_claude_settings_json, start_server, substitute_placeholder,
+    temp_settings_dir, write_settings_file,
 };
 
 #[test]
@@ -206,4 +207,36 @@ fn aggregate_status_picks_highest_priority_for_workspace() {
         ),
         None,
     );
+}
+
+#[test]
+fn temp_settings_dir_is_pid_scoped() {
+    let dir = temp_settings_dir();
+    let pid = std::process::id();
+    assert!(
+        dir.file_name()
+            .and_then(|s| s.to_str())
+            .map(|s| s.contains(&pid.to_string()))
+            .unwrap_or(false),
+        "expected temp dir to include pid {pid}, got {dir:?}",
+    );
+}
+
+#[test]
+fn write_settings_file_creates_parent_and_writes_json() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("nested").join("tab-xyz.json");
+    let json = r#"{"hooks":{}}"#;
+    write_settings_file(&path, json).unwrap();
+    let read_back = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(read_back, json);
+}
+
+#[test]
+fn write_settings_file_overwrites_existing() {
+    let dir = tempfile::tempdir().unwrap();
+    let path: PathBuf = dir.path().join("tab.json");
+    write_settings_file(&path, "first").unwrap();
+    write_settings_file(&path, "second").unwrap();
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "second");
 }

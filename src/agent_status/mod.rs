@@ -5,5 +5,7 @@ pub mod store;
 
 pub use event::AgentStatus;
 pub use server::{HookEvent, start_server};
-pub use settings_file::{build_claude_settings_json, substitute_placeholder};
+pub use settings_file::{
+    build_claude_settings_json, substitute_placeholder, temp_settings_dir, write_settings_file,
+};
 pub use store::{AgentStatusEvent, AgentStatusStore};

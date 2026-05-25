@@ -1,4 +1,6 @@
+use anyhow::{Context, Result};
 use serde_json::json;
+use std::path::{Path, PathBuf};
 
 /// Build the Claude Code `--settings` file contents pointing at the swrm
 /// hook server. `base_url` is the swrm server origin (`http://127.0.0.1:PORT`,
@@ -40,4 +42,24 @@ pub fn substitute_placeholder(command: &str, path: &str) -> String {
     command
         .replace("${CLAUDE_SETTINGS}", path)
         .replace("$CLAUDE_SETTINGS", path)
+}
+
+/// `${TMPDIR}/swrm-<pid>/` — the per-process directory we write tab settings
+/// files into. PID-scoped so multiple swrm processes don't collide and so
+/// the parent dir can be wiped on shutdown without affecting other tools.
+/// Best-effort cleanup on app exit is not implemented; macOS wipes /tmp on
+/// reboot which is sufficient for the MVP.
+pub fn temp_settings_dir() -> PathBuf {
+    std::env::temp_dir().join(format!("swrm-{}", std::process::id()))
+}
+
+/// Write `json` to `path`, creating the parent directory if necessary.
+/// Overwrites any existing file.
+pub fn write_settings_file(path: &Path, json: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .with_context(|| format!("create settings parent {parent:?}"))?;
+    }
+    std::fs::write(path, json).with_context(|| format!("write settings file {path:?}"))?;
+    Ok(())
 }
