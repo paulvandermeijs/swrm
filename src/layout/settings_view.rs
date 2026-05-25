@@ -5,7 +5,7 @@ use gpui::{
     ParentElement, Render, SharedString, Styled, Subscription, Window, div,
 };
 use gpui_component::{
-    Disableable, IconName, Sizable,
+    ActiveTheme, Disableable, IconName, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{Input, InputEvent, InputState},
@@ -84,7 +84,7 @@ impl Render for SettingsView {
             let btn_down_id: SharedString = format!("agent-down-{}", id).into();
             let btn_del_id: SharedString = format!("agent-del-{}", id).into();
 
-            items.push(SettingItem::render(move |_opts, _window, _cx| {
+            items.push(SettingItem::render(move |_opts, _window, cx| {
                 v_flex()
                     .gap_2()
                     .child(
@@ -147,10 +147,21 @@ impl Render for SettingsView {
                             .child(Input::new(&name_input)),
                     )
                     .child(
-                        h_flex()
-                            .gap_2()
-                            .child(Label::new("Command"))
-                            .child(Input::new(&command_input)),
+                        v_flex()
+                            .gap_1()
+                            .child(
+                                h_flex()
+                                    .gap_2()
+                                    .child(Label::new("Command"))
+                                    .child(Input::new(&command_input)),
+                            )
+                            .child(
+                                div()
+                                    .pl(gpui::px(64.))
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child("Use $CLAUDE_SETTINGS to enable status tracking"),
+                            ),
                     )
                     .into_any_element()
             }));
