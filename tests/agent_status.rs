@@ -1,4 +1,4 @@
-use swrm::agent_status::AgentStatus;
+use swrm::agent_status::{AgentStatus, build_claude_settings_json, substitute_placeholder};
 
 #[test]
 fn agent_status_priority_orders_attention_first() {
@@ -25,4 +25,67 @@ fn agent_status_from_str_unknown_is_none() {
     assert_eq!(AgentStatus::from_wire(""), None);
     assert_eq!(AgentStatus::from_wire("bogus"), None);
     assert_eq!(AgentStatus::from_wire("NOTIFY"), None); // case-sensitive
+}
+
+#[test]
+fn claude_settings_json_wires_all_status_hooks() {
+    let json = build_claude_settings_json("http://127.0.0.1:51234", "tab-abc");
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+    // Every status-bearing event has a curl POST to the right URL.
+    let expectations = [
+        ("PermissionRequest", "notify"),
+        ("Stop", "done"),
+        ("UserPromptSubmit", "working"),
+        ("PreToolUse", "working"),
+        ("PostToolUse", "working"),
+        ("SessionStart", "idle"),
+    ];
+    for (event, status) in expectations {
+        let cmd = parsed
+            .pointer(&format!("/hooks/{event}/0/hooks/0/command"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_else(|| panic!("missing {event} hook"));
+        let expected_url = format!("http://127.0.0.1:51234/event/tab-abc/{status}");
+        assert!(
+            cmd.contains(&expected_url),
+            "{event}: expected URL {expected_url} in cmd: {cmd}",
+        );
+        assert!(cmd.contains("curl"), "{event}: cmd should curl: {cmd}");
+    }
+}
+
+#[test]
+fn claude_settings_json_does_not_subscribe_to_notification() {
+    // Claude Code's Notification hook fires on a timer for idle_prompt,
+    // which would spuriously flip a freshly-cleared session back to notify.
+    // PermissionRequest covers the legitimate permission case; matches
+    // agent-status's reasoning.
+    let json = build_claude_settings_json("http://127.0.0.1:1", "x");
+    let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+    assert!(parsed.pointer("/hooks/Notification").is_none());
+}
+
+#[test]
+fn substitute_placeholder_replaces_bare_form() {
+    let out = substitute_placeholder("claude --settings $CLAUDE_SETTINGS", "/tmp/x.json");
+    assert_eq!(out, "claude --settings /tmp/x.json");
+}
+
+#[test]
+fn substitute_placeholder_replaces_braced_form() {
+    let out = substitute_placeholder("claude --settings ${CLAUDE_SETTINGS}", "/tmp/x.json");
+    assert_eq!(out, "claude --settings /tmp/x.json");
+}
+
+#[test]
+fn substitute_placeholder_leaves_command_alone_when_absent() {
+    let out = substitute_placeholder("claude", "/tmp/x.json");
+    assert_eq!(out, "claude");
+}
+
+#[test]
+fn substitute_placeholder_handles_multiple_occurrences() {
+    let out = substitute_placeholder("a $CLAUDE_SETTINGS b ${CLAUDE_SETTINGS} c", "/p");
+    assert_eq!(out, "a /p b /p c");
 }
