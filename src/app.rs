@@ -29,6 +29,9 @@ actions!(
         // is focused. The TerminalTab handlers write the appropriate bytes to the PTY.
         SendTerminalTab,
         SendTerminalShiftTab,
+        OpenSettings,
+        ShowAbout,
+        Quit,
     ]
 );
 
@@ -140,6 +143,31 @@ impl Render for Root {
                 move |_: &SelectTab9, _window: &mut Window, cx: &mut App| {
                     tabs.update(cx, |t, cx| t.cmd_select_tab(8, cx));
                 }
+            })
+            .on_action({
+                move |_: &OpenSettings, window: &mut Window, cx: &mut App| {
+                    gpui_component::Root::update(window, cx, |root, window, cx| {
+                        root.open_dialog(
+                            move |dialog, _window, _cx| {
+                                dialog
+                                    .title("Settings")
+                                    .content(|content, _, _| content)
+                                    .w(gpui::px(800.))
+                                    .close_button(true)
+                                    .overlay_closable(true)
+                                    .keyboard(true)
+                            },
+                            window,
+                            cx,
+                        );
+                    });
+                }
+            })
+            .on_action(|_: &ShowAbout, _window: &mut Window, _cx: &mut App| {
+                tracing::info!("swrm v{}", env!("CARGO_PKG_VERSION"));
+            })
+            .on_action(|_: &Quit, _window: &mut Window, cx: &mut App| {
+                cx.quit();
             })
             .size_full()
             .child(self.layout.dock.clone())

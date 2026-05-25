@@ -53,6 +53,25 @@ fn main() -> Result<()> {
                 gpui::KeyBinding::new("cmd-9", app::SelectTab9, Some("Root")),
                 gpui::KeyBinding::new("tab", app::SendTerminalTab, Some("Terminal")),
                 gpui::KeyBinding::new("shift-tab", app::SendTerminalShiftTab, Some("Terminal")),
+                gpui::KeyBinding::new("cmd-,", app::OpenSettings, Some("Root")),
+                gpui::KeyBinding::new("cmd-q", app::Quit, Some("Root")),
+            ]);
+            cx.set_menus(vec![
+                gpui::Menu::new("swrm").items([
+                    gpui::MenuItem::action("About swrm", app::ShowAbout),
+                    gpui::MenuItem::Separator,
+                    gpui::MenuItem::action("Settings…", app::OpenSettings),
+                    gpui::MenuItem::Separator,
+                    gpui::MenuItem::action("Quit swrm", app::Quit),
+                ]),
+                gpui::Menu::new("File").items([
+                    gpui::MenuItem::action("New Tab", app::NewTab),
+                    gpui::MenuItem::action("Close Tab", app::CloseTab),
+                ]),
+                gpui::Menu::new("View").items([
+                    gpui::MenuItem::action("Toggle Left Sidebar", app::ToggleLeftSidebar),
+                    gpui::MenuItem::action("Toggle Right Sidebar", app::ToggleRightSidebar),
+                ]),
             ]);
             let bounds = Bounds::centered(None, size(px(1280.), px(800.)), cx);
             cx.open_window(
