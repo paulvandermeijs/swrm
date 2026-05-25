@@ -2,8 +2,8 @@ use std::path::PathBuf;
 use swrm::agent_status::server::parse_event_path;
 use swrm::agent_status::store::aggregate_status;
 use swrm::agent_status::{
-    AgentStatus, HookEvent, build_claude_settings_json, has_placeholder, start_server,
-    substitute_placeholder, temp_settings_dir, write_settings_file,
+    AgentStatus, HookEvent, build_claude_settings_json, extract_activity, has_placeholder,
+    start_server, substitute_placeholder, temp_settings_dir, write_settings_file,
 };
 
 #[test]
@@ -323,4 +323,45 @@ fn has_placeholder_rejects_disguised_longer_var() {
 #[test]
 fn has_placeholder_rejects_absent() {
     assert!(!has_placeholder("claude"));
+}
+
+#[test]
+fn extract_activity_bash_returns_running_command() {
+    let body = r#"{"tool_name":"Bash","tool_input":{"command":"cargo test"}}"#;
+    assert_eq!(extract_activity(body), Some("Running: cargo test".to_string()));
+}
+
+#[test]
+fn extract_activity_read_returns_reading_path() {
+    let body = r#"{"tool_name":"Read","tool_input":{"file_path":"src/foo.rs"}}"#;
+    assert_eq!(extract_activity(body), Some("Reading src/foo.rs".to_string()));
+}
+
+#[test]
+fn extract_activity_edit_returns_editing_path() {
+    let body = r#"{"tool_name":"Edit","tool_input":{"file_path":"src/foo.rs"}}"#;
+    assert_eq!(extract_activity(body), Some("Editing src/foo.rs".to_string()));
+}
+
+#[test]
+fn extract_activity_unknown_tool_returns_generic_fallback() {
+    let body = r#"{"tool_name":"NewTool","tool_input":{}}"#;
+    assert_eq!(extract_activity(body), Some("Running tool: NewTool".to_string()));
+}
+
+#[test]
+fn extract_activity_missing_tool_input_uses_fallback_label() {
+    let body = r#"{"tool_name":"Read"}"#;
+    assert_eq!(extract_activity(body), Some("Reading".to_string()));
+}
+
+#[test]
+fn extract_activity_no_tool_name_returns_none() {
+    let body = r#"{"hook_event_name":"Stop"}"#;
+    assert_eq!(extract_activity(body), None);
+}
+
+#[test]
+fn extract_activity_invalid_json_returns_none() {
+    assert_eq!(extract_activity("not json"), None);
 }

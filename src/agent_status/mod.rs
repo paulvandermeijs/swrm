@@ -1,8 +1,10 @@
+pub mod activity;
 pub mod event;
 pub mod server;
 pub mod settings_file;
 pub mod store;
 
+pub use activity::{extract_activity, format_activity};
 pub use event::AgentStatus;
 pub use server::{HookEvent, start_server};
 pub use settings_file::{
