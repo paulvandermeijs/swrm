@@ -55,81 +55,19 @@ pub struct Backend {
 
 impl Backend {
     pub fn spawn(cwd: &Path, cols: u16, rows: u16) -> Result<(Self, UnboundedReceiver<AlacEvent>)> {
-        let size = TermSize {
-            columns: cols as usize,
-            screen_lines: rows as usize,
-        };
-        let (listener, events_rx) = SwrmListener::pair();
-        let term = Term::new(Config::default(), &size, listener.clone());
-        let term = Arc::new(FairMutex::new(term));
-
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
-        let mut tty_opts = tty::Options::default();
-        tty_opts.shell = Some(tty::Shell::new(shell, vec![]));
-        tty_opts.working_directory = Some(cwd.to_path_buf());
-        tty_opts.drain_on_exit = true;
-        tty_opts.env = child_env();
-
-        let pty = tty::new(&tty_opts, size.into(), 0).context("open pty + fork shell")?;
-
-        let event_loop = EventLoop::new(term.clone(), listener, pty, true, false)
-            .context("build alacritty event loop")?;
-
-        let tx = event_loop.channel();
-        let _join = Some(event_loop.spawn());
-
-        Ok((
-            Self {
-                term,
-                tx: Some(tx),
-                _join,
-                size,
-            },
-            events_rx,
-        ))
+        Self::spawn_with_args(cwd, vec![], cols, rows)
     }
 
+    /// Spawn a PTY that runs `$SHELL -c <command>`. `command` is a shell-eval'd
+    /// string, NOT an argv — quoting, expansion, pipes, and aliases all apply.
+    /// Use this to launch a tab into a specific agent invocation.
     pub fn spawn_command(
         cwd: &Path,
         command: &str,
         cols: u16,
         rows: u16,
     ) -> Result<(Self, UnboundedReceiver<AlacEvent>)> {
-        let size = TermSize {
-            columns: cols as usize,
-            screen_lines: rows as usize,
-        };
-        let (listener, events_rx) = SwrmListener::pair();
-        let term = Term::new(Config::default(), &size, listener.clone());
-        let term = Arc::new(FairMutex::new(term));
-
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
-        let mut tty_opts = tty::Options::default();
-        tty_opts.shell = Some(tty::Shell::new(
-            shell,
-            vec!["-c".into(), command.to_string()],
-        ));
-        tty_opts.working_directory = Some(cwd.to_path_buf());
-        tty_opts.drain_on_exit = true;
-        tty_opts.env = child_env();
-
-        let pty = tty::new(&tty_opts, size.into(), 0).context("open pty + fork shell -c")?;
-
-        let event_loop = EventLoop::new(term.clone(), listener, pty, true, false)
-            .context("build alacritty event loop")?;
-
-        let tx = event_loop.channel();
-        let _join = Some(event_loop.spawn());
-
-        Ok((
-            Self {
-                term,
-                tx: Some(tx),
-                _join,
-                size,
-            },
-            events_rx,
-        ))
+        Self::spawn_with_args(cwd, vec!["-c".into(), command.to_string()], cols, rows)
     }
 
     pub fn headless(cols: u16, rows: u16) -> (Self, UnboundedReceiver<AlacEvent>) {
@@ -285,6 +223,46 @@ impl Backend {
             cursor_col,
             cursor_visible,
         }
+    }
+
+    fn spawn_with_args(
+        cwd: &Path,
+        shell_args: Vec<String>,
+        cols: u16,
+        rows: u16,
+    ) -> Result<(Self, UnboundedReceiver<AlacEvent>)> {
+        let size = TermSize {
+            columns: cols as usize,
+            screen_lines: rows as usize,
+        };
+        let (listener, events_rx) = SwrmListener::pair();
+        let term = Term::new(Config::default(), &size, listener.clone());
+        let term = Arc::new(FairMutex::new(term));
+
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
+        let mut tty_opts = tty::Options::default();
+        tty_opts.shell = Some(tty::Shell::new(shell, shell_args));
+        tty_opts.working_directory = Some(cwd.to_path_buf());
+        tty_opts.drain_on_exit = true;
+        tty_opts.env = child_env();
+
+        let pty = tty::new(&tty_opts, size.into(), 0).context("open pty + fork shell")?;
+
+        let event_loop = EventLoop::new(term.clone(), listener, pty, true, false)
+            .context("build alacritty event loop")?;
+
+        let tx = event_loop.channel();
+        let _join = Some(event_loop.spawn());
+
+        Ok((
+            Self {
+                term,
+                tx: Some(tx),
+                _join,
+                size,
+            },
+            events_rx,
+        ))
     }
 }
 

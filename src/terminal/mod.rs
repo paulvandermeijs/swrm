@@ -28,6 +28,9 @@ impl Terminal {
         })
     }
 
+    /// Spawn a PTY running `$SHELL -c <command>`. `command` is shell-eval'd —
+    /// quoting, expansion, pipes, and aliases all apply. Use this for agent
+    /// tabs (e.g. `claude`, `codex --print`). For a plain shell, use `spawn`.
     pub fn spawn_command(cwd: &Path, command: &str, cols: u16, rows: u16) -> Result<Self> {
         let (backend, events) = Backend::spawn_command(cwd, command, cols, rows)?;
         Ok(Self {
