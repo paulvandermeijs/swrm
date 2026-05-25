@@ -171,7 +171,10 @@ fn server_receives_post_and_dispatches_hook_event() {
 fn aggregate_status_returns_none_when_empty() {
     let entries: Vec<(PathBuf, AgentStatus)> = vec![];
     let target = PathBuf::from("/ws/a");
-    assert_eq!(aggregate_status(&entries, &target), None);
+    assert_eq!(
+        aggregate_status(entries.iter().map(|(p, s)| (p.as_path(), *s)), &target),
+        None,
+    );
 }
 
 #[test]
@@ -183,12 +186,24 @@ fn aggregate_status_picks_highest_priority_for_workspace() {
         (PathBuf::from("/ws/b"), AgentStatus::Done),
     ];
     assert_eq!(
-        aggregate_status(&entries, &PathBuf::from("/ws/a")),
+        aggregate_status(
+            entries.iter().map(|(p, s)| (p.as_path(), *s)),
+            &PathBuf::from("/ws/a"),
+        ),
         Some(AgentStatus::Notify),
     );
     assert_eq!(
-        aggregate_status(&entries, &PathBuf::from("/ws/b")),
+        aggregate_status(
+            entries.iter().map(|(p, s)| (p.as_path(), *s)),
+            &PathBuf::from("/ws/b"),
+        ),
         Some(AgentStatus::Done),
     );
-    assert_eq!(aggregate_status(&entries, &PathBuf::from("/ws/c")), None,);
+    assert_eq!(
+        aggregate_status(
+            entries.iter().map(|(p, s)| (p.as_path(), *s)),
+            &PathBuf::from("/ws/c"),
+        ),
+        None,
+    );
 }
