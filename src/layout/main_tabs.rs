@@ -261,12 +261,15 @@ impl MainTabsPanel {
     }
 
     fn default_spec(&self, cx: &Context<Self>) -> TabSpec {
+        // Skip incomplete agents: a row left half-configured in Settings shouldn't
+        // get auto-spawned as the workspace's default tab.
         self.state
             .read(cx)
             .settings
             .read(cx)
             .agents()
-            .first()
+            .iter()
+            .find(|a| !a.name.trim().is_empty() && !a.command.trim().is_empty())
             .cloned()
             .map(TabSpec::Agent)
             .unwrap_or(TabSpec::Shell)
@@ -390,8 +393,21 @@ impl Render for MainTabsPanel {
                     .small()
                     .icon(IconName::Plus)
                     .dropdown_menu(move |menu, _window, cx| {
-                        let agents = state.read(cx).settings.read(cx).agents().to_vec();
-                        let mut menu = menu.min_w(gpui::px(180.));
+                        // Filter out incomplete agents (empty name or command).
+                        // A new agent is persisted with empty fields the moment
+                        // the user clicks "+ Add agent" in Settings, so without
+                        // this filter the dropdown would show a blank, dead row
+                        // for a half-configured agent.
+                        let agents: Vec<Agent> = state
+                            .read(cx)
+                            .settings
+                            .read(cx)
+                            .agents()
+                            .iter()
+                            .filter(|a| !a.name.trim().is_empty() && !a.command.trim().is_empty())
+                            .cloned()
+                            .collect();
+                        let mut menu = menu.min_w(gpui::px(180.)).scrollable(true);
                         for agent in &agents {
                             let agent = agent.clone();
                             let weak = weak.clone();
